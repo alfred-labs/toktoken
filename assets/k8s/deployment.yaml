@@ -15,6 +15,8 @@ spec:
       labels:
         app: anthropic-router
     spec:
+      imagePullSecrets:
+        - name: ghcr-secret
       containers:
         - name: router
           image: ghcr.io/efortin/toktoken:latest

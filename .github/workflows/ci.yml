@@ -148,6 +148,14 @@ jobs:
             --namespace vllm \
             --from-literal=api-key=test-vllm-key
 
+      - name: Create GHCR pull secret
+        run: |
+          kubectl create secret docker-registry ghcr-secret \
+            --namespace vllm \
+            --docker-server=ghcr.io \
+            --docker-username=${{ github.actor }} \
+            --docker-password=${{ secrets.GITHUB_TOKEN }}
+
       - name: Deploy to k3s
         run: |
           # Update image in deployment
