@@ -1,7 +1,7 @@
 import pino from 'pino';
 import { z } from 'zod';
 
-const logger = pino({ level: 'info' });
+export const logger = pino({ level: 'info' });
 
 const ModelsResponseSchema = z.object({
   data: z.array(z.object({

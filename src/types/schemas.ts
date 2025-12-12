@@ -29,12 +29,21 @@ export const AnthropicToolSchema = z.object({
   input_schema: z.record(z.string(), z.unknown()),
 });
 
+// Anthropic System Content Block Schema (for array format)
+export const AnthropicSystemBlockSchema = z.object({
+  type: z.enum(['text']),
+  text: z.string(),
+  cache_control: z.object({
+    type: z.string(),
+  }).optional(),
+});
+
 // Anthropic Request Schema
 export const AnthropicRequestSchema = z.object({
   model: z.string(),
   messages: z.array(AnthropicMessageSchema),
   max_tokens: z.number(),
-  system: z.string().optional(),
+  system: z.union([z.string(), z.array(AnthropicSystemBlockSchema)]).optional(),
   tools: z.array(AnthropicToolSchema).optional(),
   tool_choice: z.object({
     type: z.string(),

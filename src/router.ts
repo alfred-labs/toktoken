@@ -8,6 +8,12 @@ import {
   handleOpenAIRequest as openaiHandler,
   handleOpenAIStreamingRequest as openaiStreamHandler,
 } from './handlers/index.js';
+import {
+  lastMessageHasImages,
+  historyHasImages,
+  processImagesInLastMessage,
+  removeImagesFromHistory,
+} from './agents/index.js';
 
 // Re-export for backwards compatibility
 export { countTokens };
@@ -28,20 +34,52 @@ export class AnthropicRouter {
   }
 
   async handleAnthropicRequest(request: AnthropicRequest, clientAuthHeader?: string): Promise<AnthropicResponse> {
-    const backend = this.backendSelector.select(request);
-    return anthropicHandler(request, {
+    let processedRequest = request;
+    
+    // If last message has images, analyze them and replace with descriptions
+    if (lastMessageHasImages(request) && this.config.visionBackend) {
+      processedRequest = await processImagesInLastMessage(request, {
+        visionBackend: this.config.visionBackend,
+        clientAuthHeader,
+      });
+      // Remove images from history
+      processedRequest = removeImagesFromHistory(processedRequest);
+    } else if (historyHasImages(request)) {
+      // Just remove images from history
+      processedRequest = removeImagesFromHistory(request);
+    }
+
+    const backend = this.backendSelector.select(processedRequest);
+    return anthropicHandler(processedRequest, {
       backend,
       onTelemetry: (usage) => this.telemetry.record(usage),
       clientAuthHeader,
+      isVisionRequest: false,
     });
   }
 
   async *handleAnthropicStreamingRequest(request: AnthropicRequest, clientAuthHeader?: string): AsyncGenerator<string> {
-    const backend = this.backendSelector.select(request);
-    yield* anthropicStreamHandler(request, {
+    let processedRequest = request;
+    
+    // If last message has images, analyze them and replace with descriptions
+    if (lastMessageHasImages(request) && this.config.visionBackend) {
+      processedRequest = await processImagesInLastMessage(request, {
+        visionBackend: this.config.visionBackend,
+        clientAuthHeader,
+      });
+      // Remove images from history
+      processedRequest = removeImagesFromHistory(processedRequest);
+    } else if (historyHasImages(request)) {
+      // Just remove images from history
+      processedRequest = removeImagesFromHistory(request);
+    }
+
+    const backend = this.backendSelector.select(processedRequest);
+    yield* anthropicStreamHandler(processedRequest, {
       backend,
       onTelemetry: (usage) => this.telemetry.record(usage),
       clientAuthHeader,
+      isVisionRequest: false,
     });
   }
 
