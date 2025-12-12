@@ -7,6 +7,7 @@ export interface ImageBlock {
     media_type: string;
     data: string;
   };
+  [key: string]: unknown;
 }
 
 export interface OpenAIImageUrlBlock {

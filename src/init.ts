@@ -95,13 +95,19 @@ export async function getAvailableModels(url: string, apiKey?: string): Promise<
       signal: AbortSignal.timeout(5000),
     });
     
-    if (!response.ok) return [];
+    if (!response.ok) {
+      logger.warn({ url, status: response.status }, 'Failed to fetch models');
+      return [];
+    }
     
     const json = await response.json();
     const data = ModelsResponseSchema.parse(json);
+    const models = data.data?.map(m => m.id) || [];
     
-    return data.data?.map(m => m.id) || [];
-  } catch {
+    logger.info({ url, models }, 'Available models discovered');
+    return models;
+  } catch (error) {
+    logger.warn({ url, error }, 'Error fetching models');
     return [];
   }
 }

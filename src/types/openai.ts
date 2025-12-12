@@ -1,62 +1,44 @@
-import { z } from 'zod';
+// Permissive types for OpenAI compatibility - no Zod validation
 
-// Message Content Schema
-export const OpenAIMessageContentSchema = z.union([
-  z.string(),
-  z.array(z.object({
-    type: z.string(),
-    text: z.string().optional(),
-    image_url: z.object({
-      url: z.string(),
-    }).optional(),
-  })),
-]);
+export interface OpenAIMessageContent {
+  type: string;
+  text?: string;
+  image_url?: { url: string };
+  [key: string]: unknown;
+}
 
-// Message Schema
-export const OpenAIMessageSchema = z.object({
-  role: z.string(),
-  content: OpenAIMessageContentSchema,
-  tool_calls: z.array(z.object({
-    id: z.string(),
-    type: z.string(),
-    function: z.object({
-      name: z.string(),
-      arguments: z.string(),
-    }),
-  })).optional(),
-  tool_call_id: z.string().optional(),
-});
+export interface OpenAIMessage {
+  role: string;
+  content: string | OpenAIMessageContent[] | null;
+  tool_calls?: {
+    id: string;
+    type: string;
+    function: { name: string; arguments: string };
+  }[];
+  tool_call_id?: string;
+  [key: string]: unknown;
+}
 
-// Request Schema
-export const OpenAIRequestSchema = z.object({
-  model: z.string(),
-  messages: z.array(OpenAIMessageSchema),
-  max_tokens: z.number().optional(),
-  temperature: z.number().optional(),
-  stream: z.boolean().optional(),
-  tools: z.array(z.object({
-    type: z.string(),
-    function: z.object({
-      name: z.string(),
-      description: z.string(),
-      parameters: z.record(z.string(), z.unknown()),
-    }),
-  })).optional(),
-  tool_choice: z.union([
-    z.string(),
-    z.object({
-      type: z.string(),
-      function: z.object({
-        name: z.string(),
-      }).optional(),
-    }),
-  ]).optional(),
-});
+export interface OpenAITool {
+  type: string;
+  function: {
+    name: string;
+    description?: string;
+    parameters: Record<string, unknown>;
+  };
+}
 
-// Inferred types
-export type OpenAIRequest = z.infer<typeof OpenAIRequestSchema>;
+export interface OpenAIRequest {
+  model: string;
+  messages: OpenAIMessage[];
+  max_tokens?: number;
+  temperature?: number;
+  stream?: boolean;
+  tools?: OpenAITool[];
+  tool_choice?: string | { type: string; function?: { name: string } };
+  [key: string]: unknown;
+}
 
-// Response types (not validated)
 export interface OpenAIResponse {
   id: string;
   object: string;

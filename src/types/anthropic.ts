@@ -1,69 +1,49 @@
-import { z } from 'zod';
+// Permissive types for MCP compatibility - no Zod validation
+// These types are intentionally loose to accept any MCP content format
 
-// Content Block Schema
-export const AnthropicContentBlockSchema = z.object({
-  type: z.enum(['text', 'image', 'tool_use', 'tool_result']),
-  text: z.string().optional(),
-  source: z.object({
-    type: z.literal('base64'),
-    media_type: z.string(),
-    data: z.string(),
-  }).optional(),
-  id: z.string().optional(),
-  name: z.string().optional(),
-  input: z.record(z.string(), z.unknown()).optional(),
-  tool_use_id: z.string().optional(),
-  content: z.string().optional(),
-});
+export interface AnthropicContentBlock {
+  type: string;
+  text?: string;
+  source?: {
+    type: string;
+    media_type: string;
+    data: string;
+  };
+  id?: string;
+  name?: string;
+  input?: Record<string, unknown>;
+  tool_use_id?: string;
+  content?: unknown; // Can be string, array, or any object (MCP results)
+  [key: string]: unknown; // Allow any additional fields
+}
 
-// Message Schema
-export const AnthropicMessageSchema = z.object({
-  role: z.enum(['user', 'assistant']),
-  content: z.union([z.string(), z.array(AnthropicContentBlockSchema)]),
-});
+export interface AnthropicMessage {
+  role: 'user' | 'assistant';
+  content: string | AnthropicContentBlock[];
+}
 
-// Tool Schema
-export const AnthropicToolSchema = z.object({
-  name: z.string(),
-  description: z.string(),
-  input_schema: z.record(z.string(), z.unknown()),
-});
+export interface AnthropicTool {
+  name: string;
+  description?: string;
+  input_schema: Record<string, unknown>;
+}
 
-// System Content Block Schema (for array format)
-export const AnthropicSystemBlockSchema = z.object({
-  type: z.enum(['text']),
-  text: z.string(),
-  cache_control: z.object({
-    type: z.string(),
-  }).optional(),
-});
+export interface AnthropicRequest {
+  model: string;
+  messages: AnthropicMessage[];
+  max_tokens: number;
+  system?: string | { type: string; text: string; cache_control?: { type: string } }[];
+  tools?: AnthropicTool[];
+  tool_choice?: { type: string; name?: string };
+  stream?: boolean;
+  temperature?: number;
+  top_p?: number;
+  top_k?: number;
+  stop_sequences?: string[];
+  metadata?: Record<string, unknown>;
+  [key: string]: unknown; // Allow any additional fields
+}
 
-// Request Schema
-export const AnthropicRequestSchema = z.object({
-  model: z.string(),
-  messages: z.array(AnthropicMessageSchema),
-  max_tokens: z.number(),
-  system: z.union([z.string(), z.array(AnthropicSystemBlockSchema)]).optional(),
-  tools: z.array(AnthropicToolSchema).optional(),
-  tool_choice: z.object({
-    type: z.string(),
-    name: z.string().optional(),
-  }).optional(),
-  stream: z.boolean().optional(),
-  temperature: z.number().optional(),
-  top_p: z.number().optional(),
-  top_k: z.number().optional(),
-  stop_sequences: z.array(z.string()).optional(),
-  metadata: z.record(z.string(), z.unknown()).optional(),
-});
-
-// Inferred types
-export type AnthropicContentBlock = z.infer<typeof AnthropicContentBlockSchema>;
-export type AnthropicMessage = z.infer<typeof AnthropicMessageSchema>;
-export type AnthropicTool = z.infer<typeof AnthropicToolSchema>;
-export type AnthropicRequest = z.infer<typeof AnthropicRequestSchema>;
-
-// Response types (not validated)
 export interface AnthropicResponse {
   id: string;
   type: 'message';
@@ -93,4 +73,15 @@ export interface AnthropicStreamEvent {
     input_tokens?: number;
     output_tokens?: number;
   };
+}
+
+// Image block type for vision processing
+export interface ImageBlock {
+  type: 'image';
+  source: {
+    type: 'base64';
+    media_type: string;
+    data: string;
+  };
+  [key: string]: unknown;
 }

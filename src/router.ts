@@ -1,7 +1,8 @@
 import type { AnthropicRequest, AnthropicResponse, OpenAIRequest, OpenAIResponse, RouterConfig } from './types/index.js';
 import { TelemetryCollector } from './telemetry/index.js';
 import { BackendSelector } from './routing/index.js';
-import { countTokens } from './transform/index.js';
+import { countTokens, sanitizeMessageContent } from './transform/index.js';
+import agentsManager from './agents/index.js';
 import {
   handleAnthropicRequest as anthropicHandler,
   handleAnthropicStreamingRequest as anthropicStreamHandler,
@@ -40,18 +41,28 @@ export class AnthropicRouter {
   async handleAnthropicRequest(request: AnthropicRequest, clientAuthHeader?: string): Promise<AnthropicResponse> {
     let processedRequest = request;
     
+    // Apply agents processing (web search guidance, etc.)
+    for (const agent of agentsManager.getAllAgents()) {
+      if (agent.shouldHandle(processedRequest)) {
+        processedRequest = agent.processRequest(processedRequest);
+      }
+    }
+    
     // If last message has images, analyze them and replace with descriptions
-    if (lastMessageHasImages(request) && this.config.visionBackend) {
-      processedRequest = await processImagesInLastMessage(request, {
+    if (lastMessageHasImages(processedRequest) && this.config.visionBackend) {
+      processedRequest = await processImagesInLastMessage(processedRequest, {
         visionBackend: this.config.visionBackend,
         clientAuthHeader,
       });
       // Remove images from history
       processedRequest = removeImagesFromHistory(processedRequest);
-    } else if (historyHasImages(request)) {
+    } else if (historyHasImages(processedRequest)) {
       // Just remove images from history
-      processedRequest = removeImagesFromHistory(request);
+      processedRequest = removeImagesFromHistory(processedRequest);
     }
+
+    // Sanitize tool_result content for vLLM compatibility
+    processedRequest = sanitizeMessageContent(processedRequest);
 
     const backend = this.backendSelector.select(processedRequest);
     return anthropicHandler(processedRequest, {
@@ -64,18 +75,28 @@ export class AnthropicRouter {
   async *handleAnthropicStreamingRequest(request: AnthropicRequest, clientAuthHeader?: string): AsyncGenerator<string> {
     let processedRequest = request;
     
+    // Apply agents processing (web search guidance, etc.)
+    for (const agent of agentsManager.getAllAgents()) {
+      if (agent.shouldHandle(processedRequest)) {
+        processedRequest = agent.processRequest(processedRequest);
+      }
+    }
+    
     // If last message has images, analyze them and replace with descriptions
-    if (lastMessageHasImages(request) && this.config.visionBackend) {
-      processedRequest = await processImagesInLastMessage(request, {
+    if (lastMessageHasImages(processedRequest) && this.config.visionBackend) {
+      processedRequest = await processImagesInLastMessage(processedRequest, {
         visionBackend: this.config.visionBackend,
         clientAuthHeader,
       });
       // Remove images from history
       processedRequest = removeImagesFromHistory(processedRequest);
-    } else if (historyHasImages(request)) {
+    } else if (historyHasImages(processedRequest)) {
       // Just remove images from history
-      processedRequest = removeImagesFromHistory(request);
+      processedRequest = removeImagesFromHistory(processedRequest);
     }
+
+    // Sanitize tool_result content for vLLM compatibility
+    processedRequest = sanitizeMessageContent(processedRequest);
 
     const backend = this.backendSelector.select(processedRequest);
     yield* anthropicStreamHandler(processedRequest, {

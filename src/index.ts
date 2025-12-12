@@ -1,10 +1,5 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
-import {
-  serializerCompiler,
-  validatorCompiler,
-  type ZodTypeProvider,
-} from 'fastify-type-provider-zod';
 import pino from 'pino';
 import { loadConfig } from './config.js';
 import { AnthropicRouter } from './router.js';
@@ -17,7 +12,6 @@ import {
   createModelsHandler,
 } from './handlers/index.js';
 import { checkBackendHealth, discoverModel, getAvailableModels } from './init.js';
-import { AnthropicRequestSchema, OpenAIRequestSchema, TokenCountRequestSchema } from './types/index.js';
 
 const logger = pino({ level: 'info' });
 
@@ -31,7 +25,8 @@ async function main() {
   // Auto-discover or validate default backend model
   const availableModels = await getAvailableModels(config.defaultBackend.url, config.defaultBackend.apiKey);
   if (availableModels.length > 0) {
-    if (!config.defaultBackend.model) {
+    // Empty string or undefined - use discovered model
+    if (!config.defaultBackend.model || config.defaultBackend.model.trim() === '') {
       config.defaultBackend.model = availableModels[0];
       logger.info({ model: config.defaultBackend.model }, 'Using discovered model');
     } else if (!availableModels.includes(config.defaultBackend.model)) {
@@ -39,6 +34,8 @@ async function main() {
       config.defaultBackend.model = availableModels[0];
       logger.warn({ requested: originalModel, actual: config.defaultBackend.model }, 'Model overwritten - requested model not available');
     }
+  } else {
+    logger.warn({ url: config.defaultBackend.url }, 'No models discovered from backend');
   }
   
   if (config.visionBackend) {
@@ -72,23 +69,19 @@ async function main() {
         options: { colorize: true }
       }
     }
-  }).withTypeProvider<ZodTypeProvider>();
-
-  // Configure Zod validation
-  app.setValidatorCompiler(validatorCompiler);
-  app.setSerializerCompiler(serializerCompiler);
+  });
 
   await app.register(cors, { origin: true });
 
   const ctx = { router, config };
 
-  // Routes
+  // Routes - no schema validation, pass through to SDK types
   app.get('/health', createHealthHandler());
   app.get('/stats', createStatsHandler(ctx));
   app.get('/v1/models', createModelsHandler(ctx));
-  app.post('/v1/messages/count_tokens', { schema: { body: TokenCountRequestSchema } }, async (request) => handleTokenCount(request.body));
-  app.post('/v1/messages', { schema: { body: AnthropicRequestSchema } }, createAnthropicMessagesHandler(ctx));
-  app.post('/v1/chat/completions', { schema: { body: OpenAIRequestSchema } }, createOpenAIChatHandler(ctx));
+  app.post('/v1/messages/count_tokens', async (request) => handleTokenCount(request.body));
+  app.post('/v1/messages', createAnthropicMessagesHandler(ctx));
+  app.post('/v1/chat/completions', createOpenAIChatHandler(ctx));
 
   // Start server
   const host = config.host;

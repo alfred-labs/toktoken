@@ -9,9 +9,9 @@ export interface RouteHandlerContext {
 }
 
 export function createAnthropicMessagesHandler(ctx: RouteHandlerContext) {
-  return async (request: FastifyRequest<{ Body: AnthropicRequest }>, reply: FastifyReply) => {
+  return async (request: FastifyRequest, reply: FastifyReply) => {
     const authHeader = request.headers.authorization;
-    const body = request.body; // Already validated by Fastify
+    const body = request.body as AnthropicRequest;
 
     try {
       if (body.stream) {
@@ -46,9 +46,9 @@ export function createAnthropicMessagesHandler(ctx: RouteHandlerContext) {
 }
 
 export function createOpenAIChatHandler(ctx: RouteHandlerContext) {
-  return async (request: FastifyRequest<{ Body: OpenAIRequest }>, reply: FastifyReply) => {
+  return async (request: FastifyRequest, reply: FastifyReply) => {
     const authHeader = request.headers.authorization;
-    const body = request.body; // Already validated by Fastify
+    const body = request.body as OpenAIRequest;
 
     try {
       if (body.stream) {

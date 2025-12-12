@@ -1,22 +1,20 @@
-// Anthropic types
+// Anthropic types (permissive for MCP compatibility)
 export {
-  AnthropicContentBlockSchema,
-  AnthropicMessageSchema,
-  AnthropicToolSchema,
-  AnthropicRequestSchema,
   type AnthropicContentBlock,
   type AnthropicMessage,
   type AnthropicTool,
   type AnthropicRequest,
   type AnthropicResponse,
   type AnthropicStreamEvent,
+  type ImageBlock,
 } from './anthropic.js';
 
-// OpenAI types
+// OpenAI types (permissive)
 export {
-  OpenAIRequestSchema,
   type OpenAIRequest,
   type OpenAIResponse,
+  type OpenAIMessage,
+  type OpenAIMessageContent,
 } from './openai.js';
 
 // Internal types
