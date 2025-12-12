@@ -82,7 +82,7 @@ export async function analyzeImageWithVision(
       return '[Image analysis failed]';
     }
 
-    const result = await response.json() as { choices: Array<{ message: { content: string } }> };
+    const result = await response.json() as { choices: { message: { content: string } }[] };
     return result.choices?.[0]?.message?.content || '[No analysis available]';
   } catch (error) {
     logger.error({ error }, 'Vision analysis error');
