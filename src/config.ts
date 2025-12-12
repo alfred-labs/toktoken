@@ -19,6 +19,7 @@ export function loadConfig(): RouterConfig {
       url: process.env.VISION_URL,
       apiKey: process.env.VISION_API_KEY || '',
       model: process.env.VISION_MODEL || 'gpt-4-vision',
+      anthropicNative: process.env.VISION_ANTHROPIC_NATIVE === 'true',
     } : undefined,
     
     telemetry: {

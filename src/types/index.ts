@@ -88,6 +88,7 @@ export interface BackendConfig {
   url: string;
   apiKey: string;
   model: string;
+  anthropicNative?: boolean;
 }
 
 export interface TelemetryConfig {

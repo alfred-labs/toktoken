@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { BackendSelector } from '../../src/routing/backend-selector.js';
-import type { RouterConfig, AnthropicRequest } from '../../src/types/index.js';
+import type { RouterConfig, AnthropicRequest, OpenAIRequest } from '../../src/types/index.js';
 
 const mockConfig: RouterConfig = {
   port: 3456,
@@ -125,6 +125,95 @@ describe('BackendSelector', () => {
       };
 
       expect(selector.hasVisionContent(request)).toBe(false);
+    });
+  });
+
+  describe('selectForOpenAI', () => {
+    it('should return default backend for text-only OpenAI requests', () => {
+      const selector = new BackendSelector(mockConfig);
+      const request: OpenAIRequest = {
+        model: 'test',
+        messages: [{ role: 'user', content: 'Hello' }],
+        max_tokens: 100,
+      };
+
+      const backend = selector.selectForOpenAI(request);
+      expect(backend.name).toBe('default');
+    });
+
+    it('should return vision backend for OpenAI image requests', () => {
+      const selector = new BackendSelector(mockConfig);
+      const request: OpenAIRequest = {
+        model: 'test',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: 'What is this?' },
+              { type: 'image_url', image_url: { url: 'data:image/png;base64,abc' } },
+            ],
+          },
+        ],
+        max_tokens: 100,
+      };
+
+      const backend = selector.selectForOpenAI(request);
+      expect(backend.name).toBe('vision');
+    });
+
+    it('should return default backend when no vision backend configured for OpenAI', () => {
+      const configWithoutVision = { ...mockConfig, visionBackend: undefined };
+      const selector = new BackendSelector(configWithoutVision);
+      const request: OpenAIRequest = {
+        model: 'test',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'image_url', image_url: { url: 'https://example.com/image.png' } },
+            ],
+          },
+        ],
+        max_tokens: 100,
+      };
+
+      const backend = selector.selectForOpenAI(request);
+      expect(backend.name).toBe('default');
+    });
+  });
+
+  describe('hasOpenAIVision', () => {
+    it('should detect image_url in OpenAI content array', () => {
+      const selector = new BackendSelector(mockConfig);
+      const request: OpenAIRequest = {
+        model: 'test',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: 'Hello' },
+              { type: 'image_url', image_url: { url: 'https://example.com/img.png' } },
+            ],
+          },
+        ],
+        max_tokens: 100,
+      };
+
+      expect(selector.hasOpenAIVision(request)).toBe(true);
+    });
+
+    it('should return false for text-only OpenAI messages', () => {
+      const selector = new BackendSelector(mockConfig);
+      const request: OpenAIRequest = {
+        model: 'test',
+        messages: [
+          { role: 'user', content: 'Hello' },
+          { role: 'assistant', content: 'Hi!' },
+        ],
+        max_tokens: 100,
+      };
+
+      expect(selector.hasOpenAIVision(request)).toBe(false);
     });
   });
 });

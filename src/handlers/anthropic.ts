@@ -1,6 +1,7 @@
-import type { AnthropicRequest, AnthropicResponse, BackendConfig, TokenUsage } from '../types/index.js';
+import type { AnthropicRequest, AnthropicResponse, BackendConfig, TokenUsage, OpenAIResponse } from '../types/index.js';
 import { SSEEnricher } from '../transform/sse-enricher.js';
 import { estimateRequestTokens } from '../transform/token-counter.js';
+import { convertAnthropicToOpenAI, convertOpenAIToAnthropic } from '../transform/anthropic-to-openai.js';
 
 export interface AnthropicHandlerOptions {
   backend: BackendConfig;
@@ -15,24 +16,51 @@ export async function handleAnthropicRequest(
   const requestId = crypto.randomUUID();
   const { backend, onTelemetry } = options;
 
-  const proxyRequest = { ...request, model: backend.model };
+  const useOpenAI = backend.anthropicNative === false;
 
-  const response = await fetch(`${backend.url}/v1/messages`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${backend.apiKey}`,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify(proxyRequest),
-  });
+  let result: AnthropicResponse;
 
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Backend error: ${response.status} ${error}`);
+  if (useOpenAI) {
+    const openaiRequest = convertAnthropicToOpenAI(request);
+    openaiRequest.model = backend.model;
+
+    const response = await fetch(`${backend.url}/v1/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${backend.apiKey}`,
+      },
+      body: JSON.stringify(openaiRequest),
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Backend error: ${response.status} ${error}`);
+    }
+
+    const openaiResult = await response.json() as OpenAIResponse;
+    result = convertOpenAIToAnthropic(openaiResult, request.model);
+  } else {
+    const proxyRequest = { ...request, model: backend.model };
+
+    const response = await fetch(`${backend.url}/v1/messages`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${backend.apiKey}`,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify(proxyRequest),
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Backend error: ${response.status} ${error}`);
+    }
+
+    result = await response.json() as AnthropicResponse;
   }
 
-  const result = await response.json() as AnthropicResponse;
   const hasToolCalls = result.content?.some(c => c.type === 'tool_use') || false;
 
   if (onTelemetry) {
@@ -45,7 +73,7 @@ export async function handleAnthropicRequest(
       outputTokens: result.usage?.output_tokens || 0,
       latencyMs: Date.now() - startTime,
       hasToolCalls,
-      hasVision: false,
+      hasVision: backend.anthropicNative === false,
     });
   }
 

@@ -44,7 +44,7 @@ export class AnthropicRouter {
   }
 
   async handleOpenAIRequest(request: OpenAIRequest): Promise<OpenAIResponse> {
-    const backend = this.config.defaultBackend;
+    const backend = this.backendSelector.selectForOpenAI(request);
     return openaiHandler(request, {
       backend,
       onTelemetry: (usage) => this.telemetry.record(usage),
@@ -52,7 +52,7 @@ export class AnthropicRouter {
   }
 
   async *handleOpenAIStreamingRequest(request: OpenAIRequest): AsyncGenerator<string> {
-    const backend = this.config.defaultBackend;
+    const backend = this.backendSelector.selectForOpenAI(request);
     yield* openaiStreamHandler(request, {
       backend,
       onTelemetry: (usage) => this.telemetry.record(usage),
