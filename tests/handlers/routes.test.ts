@@ -1,12 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { FastifyRequest, FastifyReply } from 'fastify';
 import {
   createAnthropicMessagesHandler,
   createOpenAIChatHandler,
   createHealthHandler,
   createStatsHandler,
   createModelsHandler,
+  type RouteHandlerContext,
 } from '../../src/handlers/routes.js';
 import type { RouterConfig } from '../../src/types/index.js';
+import type { AnthropicRouter } from '../../src/router.js';
 
 const mockRouter = {
   handleAnthropicRequest: vi.fn(),
@@ -30,7 +33,7 @@ const mockConfig: RouterConfig = {
   logLevel: 'info',
 };
 
-const ctx = { router: mockRouter as any, config: mockConfig };
+const ctx: RouteHandlerContext = { router: mockRouter as unknown as AnthropicRouter, config: mockConfig };
 
 describe('Route Handlers', () => {
   beforeEach(() => {
@@ -70,14 +73,14 @@ describe('Route Handlers', () => {
   });
 
   describe('createAnthropicMessagesHandler', () => {
-    const createMockRequest = (body: any, apiKey?: string) => ({
+    const createMockRequest = (body: unknown, apiKey?: string) => ({
       headers: {
         authorization: apiKey ? `Bearer ${apiKey}` : undefined,
         'x-api-key': apiKey,
       },
       body,
       log: { error: vi.fn() },
-    });
+    }) as unknown as FastifyRequest;
 
     const createMockReply = () => ({
       code: vi.fn().mockReturnThis(),
@@ -95,7 +98,7 @@ describe('Route Handlers', () => {
       const request = createMockRequest({}, 'wrong-key');
       const reply = createMockReply();
 
-      const result = await handler(request as any, reply as any);
+      const result = await handler(request, reply as unknown as FastifyReply);
 
       expect(reply.code).toHaveBeenCalledWith(401);
       expect(result).toEqual({ error: { type: 'authentication_error', message: 'Invalid API key' } });
@@ -113,7 +116,7 @@ describe('Route Handlers', () => {
       }, 'test-api-key');
       const reply = createMockReply();
 
-      const result = await handler(request as any, reply as any);
+      const result = await handler(request, reply as unknown as FastifyReply);
 
       expect(result).toEqual(mockResponse);
     });
@@ -134,7 +137,7 @@ describe('Route Handlers', () => {
       }, 'test-api-key');
       const reply = createMockReply();
 
-      await handler(request as any, reply as any);
+      await handler(request, reply as unknown as FastifyReply);
 
       expect(reply.raw.writeHead).toHaveBeenCalledWith(200, expect.objectContaining({
         'Content-Type': 'text/event-stream',
@@ -146,7 +149,8 @@ describe('Route Handlers', () => {
     });
 
     it('should handle streaming error', async () => {
-      async function* mockStream() {
+      async function* mockStream(): AsyncGenerator<string> {
+        yield ''; // eslint requires at least one yield
         throw new Error('Stream error');
       }
       mockRouter.handleAnthropicStreamingRequest.mockReturnValue(mockStream());
@@ -160,7 +164,7 @@ describe('Route Handlers', () => {
       }, 'test-api-key');
       const reply = createMockReply();
 
-      await handler(request as any, reply as any);
+      await handler(request, reply as unknown as FastifyReply);
 
       expect(reply.raw.write).toHaveBeenCalledWith(expect.stringContaining('error'));
     });
@@ -176,7 +180,7 @@ describe('Route Handlers', () => {
       }, 'test-api-key');
       const reply = createMockReply();
 
-      const result = await handler(request as any, reply as any);
+      const result = await handler(request, reply as unknown as FastifyReply);
 
       expect(reply.code).toHaveBeenCalledWith(500);
       expect(result).toEqual({ error: { type: 'api_error', message: 'Backend error' } });
@@ -184,13 +188,13 @@ describe('Route Handlers', () => {
   });
 
   describe('createOpenAIChatHandler', () => {
-    const createMockRequest = (body: any, apiKey?: string) => ({
+    const createMockRequest = (body: unknown, apiKey?: string) => ({
       headers: {
         authorization: apiKey ? `Bearer ${apiKey}` : undefined,
       },
       body,
       log: { error: vi.fn() },
-    });
+    }) as unknown as FastifyRequest;
 
     const createMockReply = () => ({
       code: vi.fn().mockReturnThis(),
@@ -208,7 +212,7 @@ describe('Route Handlers', () => {
       const request = createMockRequest({}, 'wrong-key');
       const reply = createMockReply();
 
-      const result = await handler(request as any, reply as any);
+      const result = await handler(request, reply as unknown as FastifyReply);
 
       expect(reply.code).toHaveBeenCalledWith(401);
       expect(result).toEqual({ error: { message: 'Invalid API key', type: 'invalid_request_error' } });
@@ -225,7 +229,7 @@ describe('Route Handlers', () => {
       }, 'test-api-key');
       const reply = createMockReply();
 
-      const result = await handler(request as any, reply as any);
+      const result = await handler(request, reply as unknown as FastifyReply);
 
       expect(result).toEqual(mockResponse);
     });
@@ -245,7 +249,7 @@ describe('Route Handlers', () => {
       }, 'test-api-key');
       const reply = createMockReply();
 
-      await handler(request as any, reply as any);
+      await handler(request, reply as unknown as FastifyReply);
 
       expect(reply.raw.writeHead).toHaveBeenCalledWith(200, expect.objectContaining({
         'Content-Type': 'text/event-stream',
@@ -263,7 +267,7 @@ describe('Route Handlers', () => {
       }, 'test-api-key');
       const reply = createMockReply();
 
-      const result = await handler(request as any, reply as any);
+      const result = await handler(request, reply as unknown as FastifyReply);
 
       expect(reply.code).toHaveBeenCalledWith(500);
       expect(result).toEqual({ error: { message: 'Backend error', type: 'api_error' } });
