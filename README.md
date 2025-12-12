@@ -1,10 +1,10 @@
-# Token Gate
+# Toktoken
 
 A lightweight API gateway that enables Anthropic API clients (like Claude Code) to use alternative LLM backends such as vLLM, Ollama, or any OpenAI-compatible server.
 
-## Why Token Gate?
+## Why Toktoken?
 
-Token Gate acts as a translation layer between Anthropic API clients and OpenAI-compatible backends. This allows you to:
+Toktoken acts as a translation layer between Anthropic API clients and OpenAI-compatible backends. This allows you to:
 
 - Use Claude Code with self-hosted models (vLLM, Ollama, etc.)
 - Route vision requests to specialized models
@@ -81,7 +81,7 @@ claude
          |
          v
 +------------------+
-|   Token Gate     |
+|    Toktoken      |
 |  - Auth          |
 |  - Routing       |
 |  - Conversion    |

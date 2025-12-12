@@ -12,8 +12,8 @@ This guide covers deploying Token Gate locally, with Docker, and on Kubernetes.
 ### Installation
 
 ```bash
-git clone https://github.com/efortin/token-gate.git
-cd token-gate
+git clone https://github.com/efortin/toktoken.git
+cd toktoken
 npm install
 ```
 
@@ -50,33 +50,33 @@ LOG_LEVEL=info
 ### Build
 
 ```bash
-docker build -t token-gate .
+docker build -t toktoken .
 ```
 
 ### Run
 
 ```bash
 docker run -d \
-  --name token-gate \
+  --name toktoken \
   -p 3456:3456 \
   -e VLLM_URL=http://your-vllm-server:8000 \
   -e VLLM_MODEL=qwen \
   -e API_KEY=your-secret-key \
-  token-gate
+  toktoken
 ```
 
 ### With Vision Backend
 
 ```bash
 docker run -d \
-  --name token-gate \
+  --name toktoken \
   -p 3456:3456 \
   -e VLLM_URL=http://inference:8000 \
   -e VLLM_MODEL=qwen \
   -e VISION_URL=http://vision:11434 \
   -e VISION_MODEL=llava \
   -e API_KEY=your-secret-key \
-  token-gate
+  toktoken
 ```
 
 ### Docker Compose
@@ -85,7 +85,7 @@ docker run -d \
 version: '3.8'
 
 services:
-  token-gate:
+  toktoken:
     build: .
     ports:
       - "3456:3456"
@@ -104,23 +104,23 @@ services:
 ### Container Management
 
 ```bash
-docker logs -f token-gate    # View logs
-docker stop token-gate       # Stop
-docker start token-gate      # Start
-docker rm token-gate         # Remove
+docker logs -f toktoken    # View logs
+docker stop toktoken       # Stop
+docker start toktoken      # Start
+docker rm toktoken         # Remove
 ```
 
 ### Using GHCR Image
 
 ```bash
-docker pull ghcr.io/efortin/token-gate:latest
+docker pull ghcr.io/efortin/toktoken:latest
 
 docker run -d \
-  --name token-gate \
+  --name toktoken \
   -p 3456:3456 \
   -e VLLM_URL=http://your-vllm-server:8000 \
   -e VLLM_MODEL=qwen \
-  ghcr.io/efortin/token-gate:latest
+  ghcr.io/efortin/toktoken:latest
 ```
 
 ## Kubernetes
@@ -162,21 +162,21 @@ Or create manually:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: token-gate
+  name: toktoken
   namespace: vllm
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: token-gate
+      app: toktoken
   template:
     metadata:
       labels:
-        app: token-gate
+        app: toktoken
     spec:
       containers:
-        - name: token-gate
-          image: ghcr.io/efortin/token-gate:latest
+        - name: toktoken
+          image: ghcr.io/efortin/toktoken:latest
           ports:
             - containerPort: 3456
           env:
@@ -214,11 +214,11 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: token-gate
+  name: toktoken
   namespace: vllm
 spec:
   selector:
-    app: token-gate
+    app: toktoken
   ports:
     - port: 3456
       targetPort: 3456
@@ -228,8 +228,8 @@ spec:
 
 ```bash
 kubectl get pods -n vllm
-kubectl logs -n vllm -l app=token-gate
-kubectl port-forward -n vllm svc/token-gate 3456:3456
+kubectl logs -n vllm -l app=toktoken
+kubectl port-forward -n vllm svc/toktoken 3456:3456
 curl http://localhost:3456/health
 ```
 
@@ -239,18 +239,18 @@ curl http://localhost:3456/health
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: token-gate
+  name: toktoken
   namespace: vllm
 spec:
   rules:
-    - host: token-gate.example.com
+    - host: toktoken.example.com
       http:
         paths:
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: token-gate
+                name: toktoken
                 port:
                   number: 3456
 ```
@@ -258,7 +258,7 @@ spec:
 ### Scaling
 
 ```bash
-kubectl scale deployment token-gate -n vllm --replicas=3
+kubectl scale deployment toktoken -n vllm --replicas=3
 ```
 
 ### Horizontal Pod Autoscaler
@@ -267,13 +267,13 @@ kubectl scale deployment token-gate -n vllm --replicas=3
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: token-gate
+  name: toktoken
   namespace: vllm
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: token-gate
+    name: toktoken
   minReplicas: 1
   maxReplicas: 10
   metrics:

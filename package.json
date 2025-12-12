@@ -1,5 +1,5 @@
 {
-  "name": "token-gate",
+  "name": "toktoken",
   "version": "0.0.1",
   "description": "A lightweight proxy enabling Anthropic API clients to use vLLM backends",
   "main": "dist/index.js",

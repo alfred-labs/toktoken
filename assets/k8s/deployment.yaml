@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: router
-          image: ghcr.io/efortin/token-gate:latest
+          image: ghcr.io/efortin/toktoken:latest
           ports:
             - containerPort: 3456
               name: http

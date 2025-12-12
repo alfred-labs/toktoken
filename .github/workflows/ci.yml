@@ -97,7 +97,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository_owner }}/token-gate
+          images: ghcr.io/${{ github.repository_owner }}/toktoken
           tags: |
             type=ref,event=branch
 
@@ -115,7 +115,7 @@ jobs:
           sbom: false
 
     outputs:
-      image: ghcr.io/${{ github.repository_owner }}/token-gate@${{ steps.docker-build.outputs.digest }}
+      image: ghcr.io/${{ github.repository_owner }}/toktoken@${{ steps.docker-build.outputs.digest }}
 
   deploy-test:
     runs-on: ubuntu-latest
@@ -148,7 +148,7 @@ jobs:
       - name: Deploy to k3s
         run: |
           # Update image in deployment
-          sed -i 's|ghcr.io/efortin/token-gate:latest|${{ needs.docker.outputs.image }}|' assets/k8s/deployment.yaml
+          sed -i 's|ghcr.io/efortin/toktoken:latest|${{ needs.docker.outputs.image }}|' assets/k8s/deployment.yaml
           kubectl apply -f assets/k8s/deployment.yaml
 
       - name: Wait for deployment
