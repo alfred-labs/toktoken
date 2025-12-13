@@ -1,0 +1,226 @@
+import {describe, it, expect} from 'vitest';
+import {anthropicToOpenAI, openAIToAnthropic} from '../../src/utils/convert.js';
+import type {AnthropicRequest, OpenAIResponse} from '../../src/types/index.js';
+
+describe('anthropicToOpenAI', () => {
+  it('should convert simple text message', () => {
+    const req: AnthropicRequest = {
+      model: 'claude-3',
+      max_tokens: 1024,
+      messages: [{role: 'user', content: 'Hello'}],
+    };
+
+    const result = anthropicToOpenAI(req);
+
+    expect(result.model).toBe('claude-3');
+    expect(result.max_tokens).toBe(1024);
+    expect(result.messages).toHaveLength(1);
+    expect(result.messages[0]).toEqual({role: 'user', content: 'Hello'});
+  });
+
+  it('should convert string system message', () => {
+    const req: AnthropicRequest = {
+      model: 'claude-3',
+      max_tokens: 1024,
+      system: 'You are helpful',
+      messages: [{role: 'user', content: 'Hi'}],
+    };
+
+    const result = anthropicToOpenAI(req);
+
+    expect(result.messages[0]).toEqual({role: 'system', content: 'You are helpful'});
+    expect(result.messages[1]).toEqual({role: 'user', content: 'Hi'});
+  });
+
+  it('should convert array system message', () => {
+    const req: AnthropicRequest = {
+      model: 'claude-3',
+      max_tokens: 1024,
+      system: [{type: 'text', text: 'Part 1'}, {type: 'text', text: 'Part 2'}],
+      messages: [{role: 'user', content: 'Hi'}],
+    };
+
+    const result = anthropicToOpenAI(req);
+
+    expect(result.messages[0]).toEqual({role: 'system', content: 'Part 1\nPart 2'});
+  });
+
+  it('should convert text content blocks', () => {
+    const req: AnthropicRequest = {
+      model: 'claude-3',
+      max_tokens: 1024,
+      messages: [{
+        role: 'user',
+        content: [{type: 'text', text: 'Hello world'}],
+      }],
+    };
+
+    const result = anthropicToOpenAI(req);
+
+    expect(result.messages[0].content).toEqual([{type: 'text', text: 'Hello world'}]);
+  });
+
+  it('should convert image content blocks', () => {
+    const req: AnthropicRequest = {
+      model: 'claude-3',
+      max_tokens: 1024,
+      messages: [{
+        role: 'user',
+        content: [{
+          type: 'image',
+          source: {type: 'base64', media_type: 'image/png', data: 'abc123'},
+        }],
+      }],
+    };
+
+    const result = anthropicToOpenAI(req);
+
+    expect(result.messages[0].content).toEqual([{
+      type: 'image_url',
+      image_url: {url: 'data:image/png;base64,abc123'},
+    }]);
+  });
+
+  it('should handle mixed content blocks', () => {
+    const req: AnthropicRequest = {
+      model: 'claude-3',
+      max_tokens: 1024,
+      messages: [{
+        role: 'user',
+        content: [
+          {type: 'text', text: 'What is this?'},
+          {type: 'image', source: {type: 'base64', media_type: 'image/jpeg', data: 'xyz'}},
+        ],
+      }],
+    };
+
+    const result = anthropicToOpenAI(req);
+    const content = result.messages[0].content as {type: string}[];
+
+    expect(content).toHaveLength(2);
+    expect(content[0]).toEqual({type: 'text', text: 'What is this?'});
+    expect(content[1]).toEqual({type: 'image_url', image_url: {url: 'data:image/jpeg;base64,xyz'}});
+  });
+
+  it('should add vision prompt when useVisionPrompt is true', () => {
+    const req: AnthropicRequest = {
+      model: 'claude-3',
+      max_tokens: 1024,
+      messages: [{role: 'user', content: 'Hi'}],
+    };
+
+    const result = anthropicToOpenAI(req, {useVisionPrompt: true});
+
+    expect(result.messages[0].role).toBe('system');
+    expect(result.messages[0].content).toContain('vision assistant');
+  });
+
+  it('should handle unknown content block types', () => {
+    const req: AnthropicRequest = {
+      model: 'claude-3',
+      max_tokens: 1024,
+      messages: [{
+        role: 'user',
+        // @ts-expect-error testing unknown block type
+        content: [{type: 'unknown', data: 'test'}],
+      }],
+    };
+
+    const result = anthropicToOpenAI(req);
+    const content = result.messages[0].content as {type: string; text: string}[];
+
+    expect(content[0].type).toBe('text');
+    expect(content[0].text).toContain('unknown');
+  });
+
+  it('should preserve stream flag', () => {
+    const req: AnthropicRequest = {
+      model: 'claude-3',
+      max_tokens: 1024,
+      stream: true,
+      messages: [{role: 'user', content: 'Hi'}],
+    };
+
+    const result = anthropicToOpenAI(req);
+
+    expect(result.stream).toBe(true);
+  });
+});
+
+describe('openAIToAnthropic', () => {
+  it('should convert basic response', () => {
+    const res: OpenAIResponse = {
+      id: 'chatcmpl-123',
+      object: 'chat.completion',
+      created: 1234567890,
+      model: 'gpt-4',
+      choices: [{
+        index: 0,
+        message: {role: 'assistant', content: 'Hello there!'},
+        finish_reason: 'stop',
+      }],
+      usage: {prompt_tokens: 10, completion_tokens: 5, total_tokens: 15},
+    };
+
+    const result = openAIToAnthropic(res, 'test-model');
+
+    expect(result.id).toBe('chatcmpl-123');
+    expect(result.type).toBe('message');
+    expect(result.role).toBe('assistant');
+    expect(result.model).toBe('test-model');
+    expect(result.content).toEqual([{type: 'text', text: 'Hello there!'}]);
+    expect(result.stop_reason).toBe('end_turn');
+    expect(result.usage).toEqual({input_tokens: 10, output_tokens: 5});
+  });
+
+  it('should handle non-stop finish reason', () => {
+    const res: OpenAIResponse = {
+      id: 'chatcmpl-123',
+      object: 'chat.completion',
+      created: 1234567890,
+      model: 'gpt-4',
+      choices: [{
+        index: 0,
+        message: {role: 'assistant', content: 'Hello'},
+        finish_reason: 'length',
+      }],
+    };
+
+    const result = openAIToAnthropic(res, 'test-model');
+
+    expect(result.stop_reason).toBe('length');
+  });
+
+  it('should handle missing usage', () => {
+    const res: OpenAIResponse = {
+      id: 'chatcmpl-123',
+      object: 'chat.completion',
+      created: 1234567890,
+      model: 'gpt-4',
+      choices: [{
+        index: 0,
+        message: {role: 'assistant', content: 'Hello'},
+        finish_reason: 'stop',
+      }],
+    };
+
+    const result = openAIToAnthropic(res, 'test-model');
+
+    expect(result.usage).toEqual({input_tokens: 0, output_tokens: 0});
+  });
+
+  it('should handle empty choices', () => {
+    const res: OpenAIResponse = {
+      id: 'chatcmpl-123',
+      object: 'chat.completion',
+      created: 1234567890,
+      model: 'gpt-4',
+      choices: [],
+    };
+
+    const result = openAIToAnthropic(res, 'test-model');
+
+    expect(result.content).toEqual([{type: 'text', text: ''}]);
+    expect(result.stop_reason).toBeNull();
+  });
+});
