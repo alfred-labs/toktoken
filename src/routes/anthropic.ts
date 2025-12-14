@@ -83,6 +83,7 @@ async function handleStream(
     }
     recordMetrics(app, user, backend.model, startTime, 'ok');
   } catch (error) {
+    app.log.error({err: error, user, model: backend.model}, 'Streaming request failed');
     reply.raw.write(formatSseError(error));
     recordMetrics(app, user, backend.model, startTime, 'error');
   }
