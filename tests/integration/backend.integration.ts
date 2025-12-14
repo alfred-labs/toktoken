@@ -338,6 +338,84 @@ async function testAnthropicStreaming(): Promise<void> {
   assert(receivedData, 'No SSE data received');
 }
 
+async function testAnthropicTokenCounting(): Promise<void> {
+  // Request exactly 100 words output and verify token count is reasonable
+  const response = await fetch(`${BACKEND_URL}/v1/messages`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': API_KEY,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: 'devstral-small-2-24b',
+      messages: [{role: 'user', content: 'Write exactly 100 words about programming. Count carefully.'}],
+      max_tokens: 200,
+      stream: true,
+    }),
+  });
+
+  assert(response.ok, `HTTP ${response.status}`);
+  assert(response.body, 'Missing response body');
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let inputTokens = 0;
+  let outputTokens = 0;
+  let textContent = '';
+
+  while (true) {
+    const {done, value} = await reader.read();
+    if (done) break;
+    const chunk = decoder.decode(value);
+    const lines = chunk.split('\n');
+    
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      const data = line.slice(6).trim();
+      if (data === '[DONE]') continue;
+      
+      try {
+        const parsed = JSON.parse(data);
+        
+        // Extract input_tokens from message_start
+        if (parsed.type === 'message_start' && parsed.message?.usage?.input_tokens) {
+          inputTokens = parsed.message.usage.input_tokens;
+        }
+        
+        // Extract output_tokens from message_delta
+        if (parsed.type === 'message_delta' && parsed.usage?.output_tokens) {
+          outputTokens = parsed.usage.output_tokens;
+        }
+        
+        // Collect text content
+        if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
+          textContent += parsed.delta.text;
+        }
+      } catch {
+        // Skip non-JSON lines
+      }
+    }
+  }
+
+  // Verify we got reasonable token counts
+  assert(inputTokens > 0, `input_tokens should be > 0, got ${inputTokens}`);
+  assert(outputTokens > 0, `output_tokens should be > 0, got ${outputTokens}`);
+  
+  // Input should include system prompt (~300 tokens) + user message (~20 tokens)
+  assert(inputTokens > 100, `input_tokens should be > 100 (includes system prompt), got ${inputTokens}`);
+  
+  // Output should be roughly proportional to word count
+  // ~100 words ≈ 130-150 tokens typically
+  const wordCount = textContent.split(/\s+/).filter(w => w.length > 0).length;
+  assert(wordCount > 50, `Should have generated at least 50 words, got ${wordCount}`);
+  assert(outputTokens > 50, `output_tokens should be > 50 for ~100 words, got ${outputTokens}`);
+  
+  // Token count should be somewhat close to word count (typically 1.3-1.5x)
+  const ratio = outputTokens / wordCount;
+  assert(ratio > 0.5 && ratio < 3, `Token/word ratio should be 0.5-3, got ${ratio.toFixed(2)} (${outputTokens} tokens / ${wordCount} words)`);
+}
+
 // ============================================================================
 // Direct vLLM Tests (bypass proxy)
 // ============================================================================
@@ -379,6 +457,7 @@ async function main(): Promise<void> {
   await runTest('Anthropic: Tool result continuation', testAnthropicToolResult);
   await runTest('Anthropic: Multiple tool calls', testAnthropicMultipleToolCalls);
   await runTest('Anthropic: Streaming', testAnthropicStreaming);
+  await runTest('Anthropic: Token counting (100 words)', testAnthropicTokenCounting);
 
   console.log('\n📦 Direct vLLM Tests\n');
   await runTest('vLLM: List models', testDirectVLLMModels);
