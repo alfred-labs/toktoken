@@ -12,6 +12,7 @@ import {
   hasOpenAIImages,
   stripOpenAIImages,
   normalizeOpenAIToolIds,
+  sanitizeToolChoice,
 } from '../utils/index.js';
 
 async function openaiRoutes(app: FastifyInstance): Promise<void> {
@@ -60,6 +61,9 @@ async function openaiRoutes(app: FastifyInstance): Promise<void> {
     const body = request.body as OpenAIRequest;
     const authHeader = request.headers.authorization;
 
+    // Debug: log incoming request
+    request.log.info({model: body.model, stream: body.stream, messageCount: body.messages?.length, hasTools: !!body.tools}, 'Chat completions request');
+
     const visionBackend = app.config.visionBackend;
     const useVision = hasOpenAIImages(body) && !!visionBackend;
     const backend = useVision && visionBackend ? visionBackend : app.config.defaultBackend;
@@ -69,9 +73,10 @@ async function openaiRoutes(app: FastifyInstance): Promise<void> {
         return handleStream(app, reply, body, backend, useVision, authHeader, user, startTime);
       }
 
-      // Strip images and normalize tool IDs for Mistral compatibility
+      // Strip images, normalize tool IDs, and sanitize tool_choice for Mistral/vLLM compatibility
       const strippedBody = useVision ? body : stripOpenAIImages(body);
-      const requestBody = normalizeOpenAIToolIds(strippedBody);
+      const normalizedBody = normalizeOpenAIToolIds(strippedBody);
+      const requestBody = sanitizeToolChoice(normalizedBody);
       const result = await callBackend<OpenAIResponse>(
         `${backend.url}/v1/chat/completions`,
         {...requestBody, model: backend.model || body.model},
@@ -102,9 +107,10 @@ async function handleStream(
   user: string,
   startTime: number,
 ): Promise<void> {
-  // Strip images and normalize tool IDs for Mistral compatibility
+  // Strip images, normalize tool IDs, and sanitize tool_choice for Mistral/vLLM compatibility
   const strippedBody = useVision ? body : stripOpenAIImages(body);
-  const requestBody = normalizeOpenAIToolIds(strippedBody);
+  const normalizedBody = normalizeOpenAIToolIds(strippedBody);
+  const requestBody = sanitizeToolChoice(normalizedBody);
   
   // Get the stream generator - this will throw on connection errors
   let stream: AsyncGenerator<string>;
