@@ -438,6 +438,15 @@ export async function* convertOpenAIStreamToAnthropic(
           delta: {type: 'text_delta', text: delta.content},
         })}\n\n`;
         outputTokens++;
+
+        // Send periodic output_tokens update (every 10 tokens)
+        if (outputTokens % 10 === 0) {
+          yield `event: message_delta\ndata: ${JSON.stringify({
+            type: 'message_delta',
+            delta: {},
+            usage: {output_tokens: outputTokens},
+          })}\n\n`;
+        }
       }
 
       // Handle tool calls
