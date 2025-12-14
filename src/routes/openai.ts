@@ -12,6 +12,7 @@ import {
   hasOpenAIImages,
   stripOpenAIImages,
   normalizeOpenAIToolIds,
+  filterEmptyAssistantMessages,
   sanitizeToolChoice,
 } from '../utils/index.js';
 
@@ -75,7 +76,8 @@ async function openaiRoutes(app: FastifyInstance): Promise<void> {
 
       // Strip images, normalize tool IDs, and sanitize tool_choice for Mistral/vLLM compatibility
       const strippedBody = useVision ? body : stripOpenAIImages(body);
-      const normalizedBody = normalizeOpenAIToolIds(strippedBody);
+      const filteredBody = filterEmptyAssistantMessages(strippedBody);
+      const normalizedBody = normalizeOpenAIToolIds(filteredBody);
       const requestBody = sanitizeToolChoice(normalizedBody);
       const result = await callBackend<OpenAIResponse>(
         `${backend.url}/v1/chat/completions`,
@@ -109,7 +111,8 @@ async function handleStream(
 ): Promise<void> {
   // Strip images, normalize tool IDs, and sanitize tool_choice for Mistral/vLLM compatibility
   const strippedBody = useVision ? body : stripOpenAIImages(body);
-  const normalizedBody = normalizeOpenAIToolIds(strippedBody);
+  const filteredBody = filterEmptyAssistantMessages(strippedBody);
+      const normalizedBody = normalizeOpenAIToolIds(filteredBody);
   const requestBody = sanitizeToolChoice(normalizedBody);
   
   // Get the stream generator - this will throw on connection errors

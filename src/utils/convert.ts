@@ -772,3 +772,19 @@ export async function* convertOpenAIStreamToAnthropic(
     }
   }
 }
+
+/** Filters out invalid assistant messages (empty content and no tool_calls). */
+export function filterEmptyAssistantMessages(req: OpenAIRequest): OpenAIRequest {
+  const filteredMessages = req.messages.filter((msg) => {
+    if (msg.role === 'assistant') {
+      const content = (msg as {content?: string | null}).content;
+      const toolCalls = (msg as {tool_calls?: unknown[]}).tool_calls;
+      // Keep if has content OR has tool_calls
+      if ((!content || content === '') && (!toolCalls || toolCalls.length === 0)) {
+        return false; // Remove empty assistant message
+      }
+    }
+    return true;
+  });
+  return { ...req, messages: filteredMessages };
+}
