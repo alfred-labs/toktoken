@@ -314,10 +314,18 @@ export function normalizeOpenAIToolIds(req: OpenAIRequest): OpenAIRequest {
     if (msg.role === 'assistant' && toolCalls) {
       const newToolCalls = toolCalls.map((call) => {
         // Strip index field which mistral-common rejects
-        const { index: _index, ...rest } = call as { index?: number; id: string; type: string; function: unknown };
+        const { index: _index, ...rest } = call as { index?: number; id: string; type: string; function: { name: string; arguments: string } };
+        // Sanitize function arguments - ensure valid JSON
+        let sanitizedArgs = rest.function?.arguments || '{}';
+        try {
+          JSON.parse(sanitizedArgs);
+        } catch {
+          sanitizedArgs = '{}';
+        }
         return {
           ...rest,
           id: idMap.get(rest.id) || rest.id,
+          function: { ...rest.function, arguments: sanitizedArgs },
         };
       });
       return {...msg, tool_calls: newToolCalls};
