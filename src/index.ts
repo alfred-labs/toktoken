@@ -21,7 +21,6 @@ async function main(): Promise<void> {
       apiKey: rawConfig.defaultBackend.apiKey,
       model: rawConfig.defaultBackend.model,
     },
-    visionBackend: rawConfig.visionBackend,
     logLevel: rawConfig.logLevel,
   };
 
@@ -38,18 +37,6 @@ async function main(): Promise<void> {
     if (models.length > 0) {
       config.defaultBackend.model = models[0];
       logger.info({model: config.defaultBackend.model}, 'Using discovered model');
-    }
-  }
-
-  // Discover vision model if not configured
-  if (config.visionBackend && !config.visionBackend.model) {
-    const visionModels = await discoverModels(
-      config.visionBackend.url,
-      config.visionBackend.apiKey,
-    );
-    if (visionModels.length > 0) {
-      config.visionBackend.model = visionModels[0];
-      logger.info({model: config.visionBackend.model}, 'Using discovered vision model');
     }
   }
 

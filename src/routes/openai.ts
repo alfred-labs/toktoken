@@ -9,21 +9,17 @@ import {
   createApiError,
   formatSseError,
   getBackendAuth,
-  hasOpenAIImages,
-  stripOpenAIImages,
   normalizeOpenAIToolIds,
   filterEmptyAssistantMessages,
   sanitizeToolChoice,
   pipe,
-  when,
 } from '../utils/index.js';
 
 // ============================================================================
 // Request Pipeline - vLLM/Mistral compatibility transformations
 // ============================================================================
 
-const transform = (useVision: boolean) => pipe<OpenAIRequest>(
-  when(!useVision, stripOpenAIImages),
+const transform = pipe<OpenAIRequest>(
   filterEmptyAssistantMessages,
   normalizeOpenAIToolIds,
   sanitizeToolChoice,
@@ -34,9 +30,6 @@ const transform = (useVision: boolean) => pipe<OpenAIRequest>(
 // ============================================================================
 
 async function openaiRoutes(app: FastifyInstance): Promise<void> {
-  const getBackend = (useVision: boolean) => 
-    useVision && app.config.visionBackend ? app.config.visionBackend : app.config.defaultBackend;
-
   // Legacy completions - passthrough
   app.post('/v1/completions', handler(app, false));
   app.post('/completions', handler(app, false));
@@ -44,14 +37,12 @@ async function openaiRoutes(app: FastifyInstance): Promise<void> {
   // Chat completions - with transformations
   app.post('/v1/chat/completions', async (req: FastifyRequest, reply: FastifyReply) => {
     const body = req.body as OpenAIRequest;
-    const useVision = hasOpenAIImages(body) && !!app.config.visionBackend;
-    const backend = getBackend(useVision);
+    const backend = app.config.defaultBackend;
     const baseUrl = backend.url as string;
     const auth = getBackendAuth(backend, req.headers.authorization) ?? '';
 
     // Pipeline: transform → set model → send
-    const transformed = transform(useVision)(body);
-    const payload = {...transformed, model: backend.model || body.model};
+    const payload = {...transform(body), model: backend.model || body.model};
 
     try {
       if (body.stream) return stream(reply, baseUrl, payload, auth);
@@ -75,7 +66,7 @@ const handler = (app: FastifyInstance, useTransform: boolean) =>
     const baseUrl = backend.url as string;
     const auth = getBackendAuth(backend, req.headers.authorization) ?? '';
     const payload = useTransform 
-      ? {...transform(false)(body), model: backend.model || body.model}
+      ? {...transform(body), model: backend.model || body.model}
       : {...body, model: backend.model || (body as {model?: string}).model};
 
     try {

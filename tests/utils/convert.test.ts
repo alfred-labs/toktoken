@@ -102,19 +102,6 @@ describe('anthropicToOpenAI', () => {
     expect(content[1]).toEqual({type: 'image_url', image_url: {url: 'data:image/jpeg;base64,xyz'}});
   });
 
-  it('should add vision prompt when useVisionPrompt is true', () => {
-    const req: AnthropicRequest = {
-      model: 'claude-3',
-      max_tokens: 1024,
-      messages: [{role: 'user', content: 'Hi'}],
-    };
-
-    const result = anthropicToOpenAI(req, {useVisionPrompt: true});
-
-    expect(result.messages[0].role).toBe('system');
-    expect(result.messages[0].content).toContain('vision assistant');
-  });
-
   it('should handle unknown content block types', () => {
     const req: AnthropicRequest = {
       model: 'claude-3',

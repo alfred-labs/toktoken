@@ -9,8 +9,6 @@ import {
   createApiError,
   formatSseError,
   getBackendAuth,
-  hasAnthropicImages,
-  stripAnthropicImages,
   anthropicToOpenAI,
   openAIToAnthropic,
   injectWebSearchPrompt,
@@ -24,12 +22,11 @@ import {
 // ============================================================================
 
 const preprocess = pipe<AnthropicRequest>(
-  stripAnthropicImages,
   injectWebSearchPrompt,
 );
 
-const toOpenAI = (req: AnthropicRequest, useVision: boolean): OpenAIRequest =>
-  anthropicToOpenAI(preprocess(req), {useVisionPrompt: useVision});
+const toOpenAI = (req: AnthropicRequest): OpenAIRequest =>
+  anthropicToOpenAI(preprocess(req));
 
 // ============================================================================
 // Response Pipeline: vLLM → OpenAI → Anthropic
@@ -42,19 +39,15 @@ const toAnthropic = (res: OpenAIResponse, model: string) => openAIToAnthropic(re
 // ============================================================================
 
 async function anthropicRoutes(app: FastifyInstance): Promise<void> {
-  const getBackend = (useVision: boolean) =>
-    useVision && app.config.visionBackend ? app.config.visionBackend : app.config.defaultBackend;
-
   app.post('/v1/messages', async (req: FastifyRequest, reply: FastifyReply) => {
     const body = req.body as AnthropicRequest;
-    const useVision = hasAnthropicImages(body) && !!app.config.visionBackend;
-    const backend = getBackend(useVision);
+    const backend = app.config.defaultBackend;
     const baseUrl = backend.url as string;
     const auth = getBackendAuth(backend, req.headers.authorization) ?? '';
     const model = backend.model || body.model;
 
     // Pipeline: Anthropic → OpenAI → vLLM
-    const payload = {...toOpenAI(body, useVision), model};
+    const payload = {...toOpenAI(body), model};
 
     try {
       if (body.stream) return streamAnthropic(reply, baseUrl, payload, auth, model);

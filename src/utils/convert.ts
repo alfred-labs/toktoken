@@ -1,5 +1,4 @@
 import type {AnthropicRequest, AnthropicResponse, OpenAIRequest, OpenAIResponse} from '../types/index.js';
-import {VISION_SYSTEM_PROMPT} from '../prompts/vision.js';
 import {WEB_SEARCH_SYSTEM_PROMPT} from '../prompts/web-search.js';
 
 /**
@@ -43,10 +42,6 @@ interface OpenAIStreamChunk {
   };
 }
 
-export interface ConvertOptions {
-  useVisionPrompt?: boolean;
-}
-
 /** Normalizes a tool ID to Mistral-compatible format (9 alphanumeric chars). */
 export function normalizeToolId(id: string): string {
   if (/^[a-zA-Z0-9]{9}$/.test(id)) {
@@ -58,12 +53,8 @@ export function normalizeToolId(id: string): string {
 }
 
 /** Converts an Anthropic request to OpenAI format. */
-export function anthropicToOpenAI(req: AnthropicRequest, options: ConvertOptions = {}): OpenAIRequest {
+export function anthropicToOpenAI(req: AnthropicRequest): OpenAIRequest {
   const messages: OpenAIRequest['messages'] = [];
-
-  if (options.useVisionPrompt) {
-    messages.push({role: 'system', content: VISION_SYSTEM_PROMPT});
-  }
 
   if (req.system) {
     const systemText = typeof req.system === 'string' 
