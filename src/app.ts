@@ -1,7 +1,8 @@
 import type {FastifyInstance} from 'fastify';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
-import type {Logger} from 'pino';
+import fs from 'fs';
+import path from 'path';
 
 import metricsPlugin from './plugins/metrics.js';
 import anthropicRoutes from './routes/anthropic.js';
@@ -17,15 +18,36 @@ declare module 'fastify' {
 
 export interface BuildAppOptions {
   config: AppConfig;
-  logger?: boolean | Logger;
+  logLevel?: string;
+  logPretty?: boolean;
+  logFilePath?: string;
 }
 
 /** Creates and configures the Fastify application. */
 export async function buildApp(options: BuildAppOptions): Promise<FastifyInstance> {
-  const {config, logger = true} = options;
+  const {config, logLevel = 'info', logPretty = false, logFilePath} = options;
+
+  // Build pino targets for transport
+  const targets: {target: string; options: Record<string, unknown>; level: string}[] = [];
+
+  // Console target
+  if (logPretty) {
+    targets.push({target: 'pino-pretty', options: {colorize: true}, level: logLevel});
+  } else {
+    targets.push({target: 'pino/file', options: {destination: 1}, level: logLevel});
+  }
+
+  // File target (if specified)
+  if (logFilePath) {
+    const dir = path.dirname(logFilePath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, {recursive: true});
+    }
+    targets.push({target: 'pino/file', options: {destination: logFilePath}, level: logLevel});
+  }
 
   const app = Fastify({
-    logger,
+    logger: targets.length > 0 ? {level: logLevel, transport: {targets}} : {level: logLevel},
     bodyLimit: 50 * 1024 * 1024, // 50MB for base64 images
   });
 
