@@ -21,7 +21,7 @@ jobs:
 
       - name: Run integration tests
         env:
-          API_KEY: ${{ secrets.API_KEY }}
+          TOKTOKEN_KEY: ${{ secrets.TOKTOKEN_KEY }}
           VLLM_API_KEY: ${{ secrets.VLLM_API_KEY }}
           VLLM_ENDPOINT: ${{ secrets.VLLM_ENDPOINT }}
         run: npx tsx tests/integration/backend.integration.ts ${{ secrets.VLLM_ENDPOINT }}

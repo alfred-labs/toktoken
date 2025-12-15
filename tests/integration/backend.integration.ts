@@ -8,7 +8,7 @@
  */
 
 const BACKEND_URL = process.argv[2] || 'http://localhost:3456';
-const API_KEY = process.env.API_KEY || 'dummy';
+const API_KEY = process.env.TOKTOKEN_KEY || 'dummy';
 const VLLM_API_KEY = process.env.VLLM_API_KEY || '';
 
 interface TestResult {
