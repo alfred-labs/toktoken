@@ -9,6 +9,7 @@ import {
   createApiError,
   formatSseError,
   getBackendAuth,
+  calculateTokenCount,
 } from '../utils/index.js';
 
 // ============================================================================
@@ -57,6 +58,21 @@ function fixTrailingAssistant(req: AnthropicRequest): AnthropicRequest {
 // ============================================================================
 
 async function anthropicRoutes(app: FastifyInstance): Promise<void> {
+  // Token counting endpoint (like claude-code-router)
+  app.post('/v1/messages/count_tokens', async (req: FastifyRequest) => {
+    const {messages, tools, system} = req.body as {
+      messages?: unknown[];
+      tools?: unknown[];
+      system?: unknown;
+    };
+    const tokenCount = calculateTokenCount(
+      (messages || []) as Parameters<typeof calculateTokenCount>[0],
+      system as Parameters<typeof calculateTokenCount>[1],
+      tools as Parameters<typeof calculateTokenCount>[2],
+    );
+    return {input_tokens: tokenCount};
+  });
+
   app.post('/v1/messages', async (req: FastifyRequest, reply: FastifyReply) => {
     const rawBody = req.body as AnthropicRequest;
     const body = fixTrailingAssistant(normalizeToolIds(rawBody));
