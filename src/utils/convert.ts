@@ -1,6 +1,4 @@
 import type {AnthropicRequest, AnthropicResponse, OpenAIRequest, OpenAIResponse} from '../types/index.js';
-import {VISION_SYSTEM_PROMPT} from '../prompts/vision.js';
-import {WEB_SEARCH_SYSTEM_PROMPT} from '../prompts/web-search.js';
 
 /**
  * Sanitizes a tool/function name to be valid for OpenAI/Mistral API.
@@ -43,27 +41,31 @@ interface OpenAIStreamChunk {
   };
 }
 
-export interface ConvertOptions {
-  useVisionPrompt?: boolean;
-}
-
 /** Normalizes a tool ID to Mistral-compatible format (9 alphanumeric chars). */
 export function normalizeToolId(id: string): string {
   if (/^[a-zA-Z0-9]{9}$/.test(id)) {
     return id;
   }
-  const hash = id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  // Use a proper hash that considers position to avoid collisions
   const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  return Array.from({length: 9}, (_, i) => chars[(hash * (i + 1) * 7) % chars.length]).join('');
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) {
+    // FNV-1a inspired hash: position-aware, better distribution
+    hash = ((hash ^ id.charCodeAt(i)) * 16777619) >>> 0;
+  }
+  // Generate 9 chars by extracting different bits from the hash
+  const result: string[] = [];
+  for (let i = 0; i < 9; i++) {
+    // Mix the hash differently for each position
+    const mixed = ((hash >>> (i * 3)) ^ (hash >>> (i + 7)) ^ (hash * (i + 1))) >>> 0;
+    result.push(chars[mixed % chars.length]);
+  }
+  return result.join('');
 }
 
 /** Converts an Anthropic request to OpenAI format. */
-export function anthropicToOpenAI(req: AnthropicRequest, options: ConvertOptions = {}): OpenAIRequest {
+export function anthropicToOpenAI(req: AnthropicRequest): OpenAIRequest {
   const messages: OpenAIRequest['messages'] = [];
-
-  if (options.useVisionPrompt) {
-    messages.push({role: 'system', content: VISION_SYSTEM_PROMPT});
-  }
 
   if (req.system) {
     const systemText = typeof req.system === 'string' 
@@ -224,21 +226,16 @@ export function filterEmptyAssistantMessages(req: OpenAIRequest): OpenAIRequest 
   return {...req, messages: filteredMessages};
 }
 
-/** Injects web search system prompt into an Anthropic request. */
-export function injectWebSearchPrompt(req: AnthropicRequest): AnthropicRequest {
-  let existingSystem = '';
+/** Tools to remove from requests (not supported by vLLM, use MCP alternatives). */
+const TOOLS_TO_REMOVE = ['WebSearch'];
 
-  if (typeof req.system === 'string') {
-    existingSystem = req.system;
-  } else if (Array.isArray(req.system)) {
-    existingSystem = req.system.map((block) => block.text || '').join('\n\n');
-  }
-
-  const newSystem = existingSystem
-    ? `${existingSystem}\n\n${WEB_SEARCH_SYSTEM_PROMPT}`
-    : WEB_SEARCH_SYSTEM_PROMPT;
-
-  return {...req, system: newSystem};
+/** Removes unsupported tools from an Anthropic request. */
+export function removeUnsupportedTools(req: AnthropicRequest): AnthropicRequest {
+  const tools = req.tools as {name: string}[] | undefined;
+  if (!tools || tools.length === 0) return req;
+  
+  const filteredTools = tools.filter(tool => !TOOLS_TO_REMOVE.includes(tool.name));
+  return { ...req, tools: filteredTools };
 }
 
 /** Converts an OpenAI response to Anthropic format. */
@@ -351,10 +348,12 @@ export async function* convertOpenAIStreamToAnthropic(
       const choice = chunk.choices?.[0];
       if (!choice) {
         if (chunk.usage && finalStopReason && !messageStopped) {
+          // Use our local outputTokens counter - vLLM's completion_tokens is often incomplete in streaming
+          const finalOutputTokens = Math.max(outputTokens, chunk.usage.completion_tokens || 0);
           yield `event: message_delta\ndata: ${JSON.stringify({
             type: 'message_delta',
             delta: {stop_reason: finalStopReason, stop_sequence: null},
-            usage: {input_tokens: chunk.usage.prompt_tokens || inputTokens, output_tokens: chunk.usage.completion_tokens || outputTokens},
+            usage: {input_tokens: chunk.usage.prompt_tokens || inputTokens, output_tokens: finalOutputTokens},
           })}\n\n`;
           yield `event: message_stop\ndata: ${JSON.stringify({type: 'message_stop'})}\n\n`;
           messageStopped = true;

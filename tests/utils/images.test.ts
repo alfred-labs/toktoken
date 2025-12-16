@@ -1,78 +1,10 @@
 import {describe, it, expect} from 'vitest';
 
 import {
-  hasAnthropicImages,
-  hasOpenAIImages,
   getMimeType,
   isImageMimeType,
-  stripAnthropicImages,
-  stripOpenAIImages,
+  sanitizeToolChoice,
 } from '../../src/utils/images.js';
-
-describe('hasAnthropicImages', () => {
-  it('should return true when last message has image blocks', () => {
-    const body = {
-      model: 'test',
-      messages: [
-        {role: 'user' as const, content: [{type: 'text', text: 'Hello'}]},
-        {role: 'user' as const, content: [{type: 'image', source: {type: 'base64', data: 'abc'}}]},
-      ],
-      max_tokens: 100,
-    };
-    expect(hasAnthropicImages(body)).toBe(true);
-  });
-
-  it('should return false when no images', () => {
-    const body = {
-      model: 'test',
-      messages: [{role: 'user' as const, content: [{type: 'text', text: 'Hello'}]}],
-      max_tokens: 100,
-    };
-    expect(hasAnthropicImages(body)).toBe(false);
-  });
-
-  it('should return false for string content', () => {
-    const body = {
-      model: 'test',
-      messages: [{role: 'user' as const, content: 'Hello'}],
-      max_tokens: 100,
-    };
-    expect(hasAnthropicImages(body)).toBe(false);
-  });
-
-  it('should return false for empty messages', () => {
-    const body = {model: 'test', messages: [], max_tokens: 100};
-    expect(hasAnthropicImages(body)).toBe(false);
-  });
-});
-
-describe('hasOpenAIImages', () => {
-  it('should return true when last message has image_url', () => {
-    const body = {
-      model: 'test',
-      messages: [
-        {role: 'user', content: [{type: 'image_url', image_url: {url: 'data:image/png;base64,abc'}}]},
-      ],
-    };
-    expect(hasOpenAIImages(body)).toBe(true);
-  });
-
-  it('should return false when no images', () => {
-    const body = {
-      model: 'test',
-      messages: [{role: 'user', content: [{type: 'text', text: 'Hello'}]}],
-    };
-    expect(hasOpenAIImages(body)).toBe(false);
-  });
-
-  it('should return false for string content', () => {
-    const body = {
-      model: 'test',
-      messages: [{role: 'user', content: 'Hello'}],
-    };
-    expect(hasOpenAIImages(body)).toBe(false);
-  });
-});
 
 describe('getMimeType', () => {
   it('should return mime type for known extensions', () => {
@@ -99,129 +31,45 @@ describe('isImageMimeType', () => {
   });
 });
 
-describe('stripAnthropicImages', () => {
-  it('should preserve string content', () => {
+describe('sanitizeToolChoice', () => {
+  it('should remove tool_choice when tools array is empty', () => {
     const body = {
       model: 'test',
-      max_tokens: 100,
-      messages: [{role: 'user' as const, content: 'Hello'}],
+      messages: [{role: 'user', content: 'Hi'}],
+      tool_choice: 'auto',
+      tools: [],
     };
-    const result = stripAnthropicImages(body);
-    expect(result.messages[0].content).toBe('Hello');
+    const result = sanitizeToolChoice(body);
+    expect(result.tool_choice).toBeUndefined();
   });
 
-  it('should remove image blocks and keep text', () => {
+  it('should remove tool_choice when tools is undefined', () => {
     const body = {
       model: 'test',
-      max_tokens: 100,
-      messages: [{
-        role: 'user' as const,
-        content: [
-          {type: 'text', text: 'What is this?'},
-          {type: 'image', source: {type: 'base64', data: 'abc'}},
-        ],
-      }],
+      messages: [{role: 'user', content: 'Hi'}],
+      tool_choice: 'auto',
     };
-    const result = stripAnthropicImages(body);
-    expect(result.messages[0].content).toBe('What is this?');
+    const result = sanitizeToolChoice(body);
+    expect(result.tool_choice).toBeUndefined();
   });
 
-  it('should replace all-image content with placeholder', () => {
+  it('should keep tool_choice when tools are present', () => {
     const body = {
       model: 'test',
-      max_tokens: 100,
-      messages: [{
-        role: 'user' as const,
-        content: [{type: 'image', source: {type: 'base64', data: 'abc'}}],
-      }],
+      messages: [{role: 'user', content: 'Hi'}],
+      tool_choice: 'auto',
+      tools: [{type: 'function', function: {name: 'test'}}],
     };
-    const result = stripAnthropicImages(body);
-    expect(result.messages[0].content).toBe('[Image removed]');
+    const result = sanitizeToolChoice(body);
+    expect(result.tool_choice).toBe('auto');
   });
 
-  it('should keep multiple text blocks as array', () => {
+  it('should return unchanged when no tool_choice', () => {
     const body = {
       model: 'test',
-      max_tokens: 100,
-      messages: [{
-        role: 'user' as const,
-        content: [
-          {type: 'text', text: 'Part 1'},
-          {type: 'image', source: {type: 'base64', data: 'abc'}},
-          {type: 'text', text: 'Part 2'},
-        ],
-      }],
+      messages: [{role: 'user', content: 'Hi'}],
     };
-    const result = stripAnthropicImages(body);
-    expect(result.messages[0].content).toEqual([
-      {type: 'text', text: 'Part 1'},
-      {type: 'text', text: 'Part 2'},
-    ]);
-  });
-});
-
-describe('stripOpenAIImages', () => {
-  it('should preserve string content', () => {
-    const body = {
-      model: 'test',
-      messages: [{role: 'user', content: 'Hello'}],
-    };
-    const result = stripOpenAIImages(body);
-    expect(result.messages[0].content).toBe('Hello');
-  });
-
-  it('should preserve null content', () => {
-    const body = {
-      model: 'test',
-      messages: [{role: 'assistant', content: null}],
-    };
-    const result = stripOpenAIImages(body);
-    expect(result.messages[0].content).toBeNull();
-  });
-
-  it('should remove image_url and keep text', () => {
-    const body = {
-      model: 'test',
-      messages: [{
-        role: 'user',
-        content: [
-          {type: 'text', text: 'What is this?'},
-          {type: 'image_url', image_url: {url: 'data:image/png;base64,abc'}},
-        ],
-      }],
-    };
-    const result = stripOpenAIImages(body);
-    expect(result.messages[0].content).toBe('What is this?');
-  });
-
-  it('should replace all-image content with placeholder', () => {
-    const body = {
-      model: 'test',
-      messages: [{
-        role: 'user',
-        content: [{type: 'image_url', image_url: {url: 'data:image/png;base64,abc'}}],
-      }],
-    };
-    const result = stripOpenAIImages(body);
-    expect(result.messages[0].content).toBe('[Image removed]');
-  });
-
-  it('should keep multiple text parts as array', () => {
-    const body = {
-      model: 'test',
-      messages: [{
-        role: 'user',
-        content: [
-          {type: 'text', text: 'Part 1'},
-          {type: 'image_url', image_url: {url: 'data:image/png;base64,abc'}},
-          {type: 'text', text: 'Part 2'},
-        ],
-      }],
-    };
-    const result = stripOpenAIImages(body);
-    expect(result.messages[0].content).toEqual([
-      {type: 'text', text: 'Part 1'},
-      {type: 'text', text: 'Part 2'},
-    ]);
+    const result = sanitizeToolChoice(body);
+    expect(result).toEqual(body);
   });
 });

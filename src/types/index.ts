@@ -95,8 +95,9 @@ export interface RouterConfig {
   host: string;
   apiKey: string;
   defaultBackend: BackendConfig;
-  visionBackend?: BackendConfig;
   logLevel: 'debug' | 'info' | 'warn' | 'error';
+  logPretty: boolean;
+  logFilePath?: string;
 }
 
 /** Application configuration used at runtime. */
@@ -105,6 +106,5 @@ export interface AppConfig {
   host: string;
   apiKey: string;
   defaultBackend: BackendConfig;
-  visionBackend?: BackendConfig;
   logLevel: 'debug' | 'info' | 'warn' | 'error';
 }

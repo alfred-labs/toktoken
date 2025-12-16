@@ -5,7 +5,7 @@
   "main": "dist/index.js",
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "LOG_PRETTY=true LOG_FILE_PATH=logs/toktoken.log tsx watch src/index.ts",
     "build": "tsc -b src",
     "start": "node dist/index.js",
     "lint": "eslint .",

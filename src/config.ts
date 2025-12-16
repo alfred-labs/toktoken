@@ -12,14 +12,8 @@ export function loadConfig(): RouterConfig {
       apiKey: process.env.VLLM_API_KEY ?? '',
       model: process.env.VLLM_MODEL ?? '',
     },
-    visionBackend: process.env.VISION_URL
-      ? {
-          name: 'vision',
-          url: process.env.VISION_URL,
-          apiKey: process.env.VISION_API_KEY ?? process.env.VLLM_API_KEY ?? '',
-          model: process.env.VISION_MODEL ?? '',
-        }
-      : undefined,
     logLevel: (process.env.LOG_LEVEL as RouterConfig['logLevel']) ?? 'info',
+    logPretty: process.env.LOG_PRETTY === 'true',
+    logFilePath: process.env.LOG_FILE_PATH,
   };
 }

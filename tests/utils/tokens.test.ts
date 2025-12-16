@@ -1,5 +1,5 @@
 import {describe, it, expect} from 'vitest';
-import {countTokens, estimateRequestTokens} from '../../src/utils/tokens.js';
+import {countTokens, estimateRequestTokens, calculateTokenCount} from '../../src/utils/tokens.js';
 
 describe('countTokens', () => {
   it('should count tokens for simple text', () => {
@@ -95,5 +95,81 @@ describe('estimateRequestTokens', () => {
     const largeCount = estimateRequestTokens(largeMessages);
     
     expect(largeCount).toBeGreaterThan(smallCount);
+  });
+});
+
+describe('calculateTokenCount', () => {
+  it('should count tokens for string message content', () => {
+    const messages = [{content: 'Hello world'}];
+    const count = calculateTokenCount(messages);
+    expect(count).toBeGreaterThan(0);
+  });
+
+  it('should count tokens for array message content with text blocks', () => {
+    const messages = [{
+      content: [
+        {type: 'text', text: 'Hello'},
+        {type: 'text', text: 'World'},
+      ],
+    }];
+    const count = calculateTokenCount(messages);
+    expect(count).toBeGreaterThan(0);
+  });
+
+  it('should count tokens for tool_use blocks', () => {
+    const messages = [{
+      content: [{type: 'tool_use', input: {command: 'ls -la'}}],
+    }];
+    const count = calculateTokenCount(messages);
+    expect(count).toBeGreaterThan(0);
+  });
+
+  it('should count tokens for tool_result blocks with string content', () => {
+    const messages = [{
+      content: [{type: 'tool_result', content: 'file1.txt\nfile2.txt'}],
+    }];
+    const count = calculateTokenCount(messages);
+    expect(count).toBeGreaterThan(0);
+  });
+
+  it('should count tokens for tool_result blocks with object content', () => {
+    const messages = [{
+      content: [{type: 'tool_result', content: [{type: 'text', text: 'result'}]}],
+    }];
+    const count = calculateTokenCount(messages);
+    expect(count).toBeGreaterThan(0);
+  });
+
+  it('should count tokens for string system prompt', () => {
+    const messages = [{content: 'Hi'}];
+    const count = calculateTokenCount(messages, 'You are a helpful assistant');
+    expect(count).toBeGreaterThan(5);
+  });
+
+  it('should count tokens for array system prompt', () => {
+    const messages = [{content: 'Hi'}];
+    const system = [{type: 'text', text: 'System prompt part 1'}, {type: 'text', text: 'Part 2'}];
+    const count = calculateTokenCount(messages, system);
+    expect(count).toBeGreaterThan(5);
+  });
+
+  it('should count tokens for tools', () => {
+    const messages = [{content: 'Hi'}];
+    const tools = [
+      {name: 'calculator', description: 'Perform math operations', input_schema: {type: 'object'}},
+      {name: 'search', description: 'Search the web'},
+    ];
+    const count = calculateTokenCount(messages, undefined, tools);
+    expect(count).toBeGreaterThan(10);
+  });
+
+  it('should handle empty messages array', () => {
+    const count = calculateTokenCount([]);
+    expect(count).toBe(0);
+  });
+
+  it('should handle undefined/null gracefully', () => {
+    const count = calculateTokenCount([], undefined, undefined);
+    expect(count).toBe(0);
   });
 });
