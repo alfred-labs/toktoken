@@ -1,5 +1,5 @@
 import {describe, it, expect} from 'vitest';
-import {anthropicToOpenAI, openAIToAnthropic, injectWebSearchPrompt, sanitizeToolName, normalizeOpenAIToolIds, filterEmptyAssistantMessages, convertOpenAIStreamToAnthropic} from '../../src/utils/convert.js';
+import {anthropicToOpenAI, openAIToAnthropic, removeUnsupportedTools, sanitizeToolName, normalizeOpenAIToolIds, filterEmptyAssistantMessages, convertOpenAIStreamToAnthropic} from '../../src/utils/convert.js';
 import type {AnthropicRequest, OpenAIResponse} from '../../src/types/index.js';
 
 describe('anthropicToOpenAI', () => {
@@ -316,61 +316,68 @@ describe('openAIToAnthropic', () => {
   });
 });
 
-describe('injectWebSearchPrompt', () => {
-  it('should inject prompt when no system exists', () => {
+describe('removeUnsupportedTools', () => {
+  it('should remove WebSearch tool from request', () => {
     const req: AnthropicRequest = {
       model: 'claude-3',
       max_tokens: 1024,
       messages: [{role: 'user', content: 'Hello'}],
+      tools: [
+        {name: 'WebSearch', description: 'Search', input_schema: {}},
+        {name: 'Bash', description: 'Run commands', input_schema: {}},
+      ],
     };
 
-    const result = injectWebSearchPrompt(req);
+    const result = removeUnsupportedTools(req);
+    const toolNames = (result.tools as {name: string}[]).map(t => t.name);
 
-    expect(result.system).toContain('Web Search Guidelines');
-    expect(result.messages).toEqual(req.messages);
+    expect(toolNames).not.toContain('WebSearch');
+    expect(toolNames).toContain('Bash');
   });
 
-  it('should append prompt to string system', () => {
+  it('should keep MCP brave-search tools', () => {
     const req: AnthropicRequest = {
       model: 'claude-3',
       max_tokens: 1024,
-      system: 'You are helpful',
       messages: [{role: 'user', content: 'Hello'}],
+      tools: [
+        {name: 'WebSearch', description: '', input_schema: {}},
+        {name: 'mcp__brave-search__brave_web_search', description: '', input_schema: {}},
+        {name: 'mcp__brave-search__brave_local_search', description: '', input_schema: {}},
+      ],
     };
 
-    const result = injectWebSearchPrompt(req);
+    const result = removeUnsupportedTools(req);
+    const toolNames = (result.tools as {name: string}[]).map(t => t.name);
 
-    expect(result.system).toContain('You are helpful');
-    expect(result.system).toContain('Web Search Guidelines');
+    expect(toolNames).not.toContain('WebSearch');
+    expect(toolNames).toContain('mcp__brave-search__brave_web_search');
+    expect(toolNames).toContain('mcp__brave-search__brave_local_search');
   });
 
-  it('should append prompt to array system', () => {
+  it('should return unchanged request when no tools', () => {
     const req: AnthropicRequest = {
       model: 'claude-3',
       max_tokens: 1024,
-      system: [{type: 'text', text: 'Part 1'}, {type: 'text', text: 'Part 2'}],
       messages: [{role: 'user', content: 'Hello'}],
     };
 
-    const result = injectWebSearchPrompt(req);
+    const result = removeUnsupportedTools(req);
 
-    expect(result.system).toContain('Part 1');
-    expect(result.system).toContain('Part 2');
-    expect(result.system).toContain('Web Search Guidelines');
+    expect(result).toEqual(req);
   });
 
-  it('should handle array system with empty text', () => {
+  it('should return unchanged request when tools array is empty', () => {
     const req: AnthropicRequest = {
       model: 'claude-3',
       max_tokens: 1024,
-      system: [{type: 'text', text: ''}, {type: 'text', text: 'Valid'}],
       messages: [{role: 'user', content: 'Hello'}],
+      tools: [],
     };
 
-    const result = injectWebSearchPrompt(req);
+    const result = removeUnsupportedTools(req);
 
-    expect(result.system).toContain('Valid');
-    expect(result.system).toContain('Web Search Guidelines');
+    expect(result.tools).toEqual([]);
   });
 });
 

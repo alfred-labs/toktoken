@@ -13,6 +13,7 @@ import {
   anthropicToOpenAI,
   openAIToAnthropic,
   convertOpenAIStreamToAnthropic,
+  removeUnsupportedTools,
 } from '../utils/index.js';
 
 // ============================================================================
@@ -37,7 +38,16 @@ async function anthropicRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.post('/v1/messages', async (req: FastifyRequest, reply: FastifyReply) => {
-    const anthropicBody = req.body as AnthropicRequest;
+    const rawBody = req.body as AnthropicRequest;
+    
+    // Debug: log tool names
+    const tools = (rawBody as { tools?: { name: string }[] }).tools;
+    if (tools && tools.length > 0) {
+      req.log.info({ toolNames: tools.map(t => t.name) }, 'Tools in request');
+    }
+    
+    // Remove unsupported tools (WebSearch - use MCP brave-search instead)
+    const anthropicBody = removeUnsupportedTools(rawBody);
     const backend = app.config.defaultBackend;
     const baseUrl = backend.url as string;
     const auth = getBackendAuth(backend, req.headers.authorization) ?? '';

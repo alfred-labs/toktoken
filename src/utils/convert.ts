@@ -227,21 +227,32 @@ export function filterEmptyAssistantMessages(req: OpenAIRequest): OpenAIRequest 
   return {...req, messages: filteredMessages};
 }
 
-/** Injects web search system prompt into an Anthropic request. */
+/** Tools to remove from requests (not supported by vLLM, use MCP alternatives). */
+const TOOLS_TO_REMOVE = ['WebSearch'];
+
+/** Removes unsupported tools from an Anthropic request. */
+export function removeUnsupportedTools(req: AnthropicRequest): AnthropicRequest {
+  const tools = req.tools as {name: string}[] | undefined;
+  if (!tools || tools.length === 0) return req;
+  
+  const filteredTools = tools.filter(tool => !TOOLS_TO_REMOVE.includes(tool.name));
+  return { ...req, tools: filteredTools };
+}
+
+/** Checks if request contains web search tools (kept for potential future use). */
+export function hasWebSearchTools(tools?: {name: string}[]): boolean {
+  if (!tools || tools.length === 0) return false;
+  const webSearchTools = [
+    'mcp__brave-search__brave_web_search',
+    'mcp__brave-search__brave_local_search',
+  ];
+  return tools.some(tool => webSearchTools.includes(tool.name));
+}
+
+/** Injects web search system prompt into an Anthropic request (disabled - MCP tools handle this). */
 export function injectWebSearchPrompt(req: AnthropicRequest): AnthropicRequest {
-  let existingSystem = '';
-
-  if (typeof req.system === 'string') {
-    existingSystem = req.system;
-  } else if (Array.isArray(req.system)) {
-    existingSystem = req.system.map((block) => block.text || '').join('\n\n');
-  }
-
-  const newSystem = existingSystem
-    ? `${existingSystem}\n\n${WEB_SEARCH_SYSTEM_PROMPT}`
-    : WEB_SEARCH_SYSTEM_PROMPT;
-
-  return {...req, system: newSystem};
+  // Disabled: MCP brave-search tools don't need prompt injection
+  return req;
 }
 
 /** Converts an OpenAI response to Anthropic format. */

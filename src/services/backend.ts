@@ -10,7 +10,6 @@ export async function callBackend<T>(
 ): Promise<T> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    'anthropic-version': '2023-06-01',
   };
   if (auth) {
     headers['Authorization'] = auth.startsWith('Bearer ') ? auth : `Bearer ${auth}`;
@@ -38,7 +37,6 @@ export async function* streamBackend(
 ): AsyncGenerator<string> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    'anthropic-version': '2023-06-01',
   };
   if (auth) {
     headers['Authorization'] = auth.startsWith('Bearer ') ? auth : `Bearer ${auth}`;
