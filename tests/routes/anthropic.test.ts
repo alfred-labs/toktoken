@@ -42,17 +42,23 @@ describe('Anthropic Routes', () => {
 
   describe('POST /v1/messages', () => {
     it('should handle non-streaming request', async () => {
-      // Mock Anthropic response format (passthrough)
-      const mockAnthropicResponse = {
-        id: 'msg_123',
-        type: 'message',
-        role: 'assistant',
-        content: [{type: 'text', text: 'Hello'}],
+      // Mock OpenAI response format (now using OpenAI endpoint with conversion)
+      const mockOpenAIResponse = {
+        id: 'chatcmpl-123',
+        object: 'chat.completion',
+        created: 1234567890,
         model: 'test-model',
-        stop_reason: 'end_turn',
-        usage: {input_tokens: 10, output_tokens: 5},
+        choices: [{
+          index: 0,
+          message: {
+            role: 'assistant',
+            content: 'Hello',
+          },
+          finish_reason: 'stop',
+        }],
+        usage: {prompt_tokens: 10, completion_tokens: 5, total_tokens: 15},
       };
-      vi.mocked(callBackend).mockResolvedValue(mockAnthropicResponse);
+      vi.mocked(callBackend).mockResolvedValue(mockOpenAIResponse);
 
       const response = await app.inject({
         method: 'POST',
@@ -67,23 +73,30 @@ describe('Anthropic Routes', () => {
 
       expect(response.statusCode).toBe(200);
       const result = response.json();
-      // Verify Anthropic format passthrough
+      // Verify converted Anthropic format
       expect(result.type).toBe('message');
       expect(result.role).toBe('assistant');
       expect(result.content[0].type).toBe('text');
       expect(result.content[0].text).toBe('Hello');
       expect(result.usage.input_tokens).toBe(10);
       expect(result.usage.output_tokens).toBe(5);
-      // Backend is called with Anthropic endpoint
+      // Backend is now called with OpenAI endpoint
       expect(callBackend).toHaveBeenCalledWith(
-        'http://localhost:8000/v1/messages',
+        'http://localhost:8000/v1/chat/completions',
         expect.objectContaining({model: 'test-model'}),
         'test-api-key',
       );
     });
 
     it('should handle streaming request', async () => {
-      const chunks = ['data: {"type":"content"}\n\n', 'data: [DONE]\n\n'];
+      // Mock OpenAI SSE stream format
+      const chunks = [
+        'data: {"id":"chatcmpl-1","choices":[{"delta":{"role":"assistant"},"index":0}]}\n\n',
+        'data: {"id":"chatcmpl-1","choices":[{"delta":{"content":"Hello"},"index":0}]}\n\n',
+        'data: {"id":"chatcmpl-1","choices":[{"delta":{},"index":0,"finish_reason":"stop"}]}\n\n',
+        'data: {"id":"chatcmpl-1","choices":[],"usage":{"prompt_tokens":10,"completion_tokens":5}}\n\n',
+        'data: [DONE]\n\n',
+      ];
       vi.mocked(streamBackend).mockImplementation(async function* () {
         for (const chunk of chunks) {
           yield chunk;
@@ -102,7 +115,11 @@ describe('Anthropic Routes', () => {
       });
 
       expect(response.statusCode).toBe(200);
-      expect(streamBackend).toHaveBeenCalled();
+      expect(streamBackend).toHaveBeenCalledWith(
+        'http://localhost:8000/v1/chat/completions',
+        expect.objectContaining({stream: true}),
+        'test-api-key',
+      );
     });
 
     it('should handle backend error', async () => {
@@ -124,7 +141,8 @@ describe('Anthropic Routes', () => {
 
     it('should handle streaming error', async () => {
       vi.mocked(streamBackend).mockImplementation(async function* () {
-        yield 'data: start\n\n';
+        // Yield a valid OpenAI chunk first
+        yield 'data: {"id":"chatcmpl-1","choices":[{"delta":{"content":"Hi"},"index":0}]}\n\n';
         throw new Error('Stream error');
       });
 

@@ -47,9 +47,21 @@ export function normalizeToolId(id: string): string {
   if (/^[a-zA-Z0-9]{9}$/.test(id)) {
     return id;
   }
-  const hash = id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  // Use a proper hash that considers position to avoid collisions
   const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  return Array.from({length: 9}, (_, i) => chars[(hash * (i + 1) * 7) % chars.length]).join('');
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) {
+    // FNV-1a inspired hash: position-aware, better distribution
+    hash = ((hash ^ id.charCodeAt(i)) * 16777619) >>> 0;
+  }
+  // Generate 9 chars by extracting different bits from the hash
+  const result: string[] = [];
+  for (let i = 0; i < 9; i++) {
+    // Mix the hash differently for each position
+    const mixed = ((hash >>> (i * 3)) ^ (hash >>> (i + 7)) ^ (hash * (i + 1))) >>> 0;
+    result.push(chars[mixed % chars.length]);
+  }
+  return result.join('');
 }
 
 /** Converts an Anthropic request to OpenAI format. */
