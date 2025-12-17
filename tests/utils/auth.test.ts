@@ -151,17 +151,20 @@ describe('hashEmail', () => {
     expect(hash1).toBe(hash2);
   });
 
-  it('should return an 8-character hex string', () => {
-    const email = 'test@example.com';
+  it('should return a short identifier based on name', () => {
+    const email = 'john.doe@example.com';
     const hash = hashEmail(email);
-    expect(hash).toMatch(/^[a-f0-9]{8}$/);
+    expect(hash).toMatch(/^[a-z]{3}-[a-f0-9]{4}$/);
   });
 
   it('should handle edge cases', () => {
     const emptyHash = hashEmail('');
-    expect(emptyHash).toBe('00000000'); // hash of empty string is 0, padded to 8 chars
+    expect(emptyHash).toBe('unknown');
     
     const simpleHash = hashEmail('a');
-    expect(simpleHash).toMatch(/^[a-f0-9]{8}$/);
+    expect(simpleHash).toMatch(/^[a-z]{3}-[a-f0-9]{4}$/);
+    
+    const noDotHash = hashEmail('emmanuel');
+    expect(noDotHash).toMatch(/^[a-z]{3}-[a-f0-9]{4}$/);
   });
 });
