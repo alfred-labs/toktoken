@@ -11,46 +11,18 @@ export {
 } from './anthropic.js';
 
 
-/** OpenAI message content. */
-export interface OpenAIMessageContent {
-  type: string;
-  text?: string;
-  image_url?: { url: string };
-  [key: string]: unknown;
-}
+// Re-export OpenAI types from dedicated file
+export {
+  OpenAIMessageContentSchema,
+  OpenAIMessageSchema,
+  OpenAIRequestSchema,
+  OpenAIResponseSchema,
+  type OpenAIMessageContent,
+  type OpenAIMessage,
+  type OpenAIRequest,
+  type OpenAIResponse,
+} from './openai.js';
 
-/** OpenAI message. */
-export interface OpenAIMessage {
-  role: string;
-  content: string | OpenAIMessageContent[] | null;
-  [key: string]: unknown;
-}
-
-/** OpenAI API request. */
-export interface OpenAIRequest {
-  model: string;
-  messages: OpenAIMessage[];
-  stream?: boolean;
-  [key: string]: unknown;
-}
-
-/** OpenAI API response. */
-export interface OpenAIResponse {
-  id: string;
-  object: string;
-  created: number;
-  model: string;
-  choices: {
-    index: number;
-    message: { role: string; content: string | null };
-    finish_reason: string;
-  }[];
-  usage: {
-    prompt_tokens: number;
-    completion_tokens: number;
-    total_tokens: number;
-  };
-}
 
 // Re-export config types from dedicated file
 export {
