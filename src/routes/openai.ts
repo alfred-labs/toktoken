@@ -42,6 +42,8 @@ async function openaiRoutes(app: FastifyInstance): Promise<void> {
     const backend = app.config.defaultBackend;
     const baseUrl = backend.url as string;
     const auth = getBackendAuth(backend, req.headers.authorization) ?? '';
+    const userTag = req.userEmail ? hashEmail(req.userEmail) : 'unknown';
+    const modelTag = backend.model || body.model;
 
     // Pipeline: transform → set model → apply temperature override if configured
     const payload = {
@@ -50,18 +52,19 @@ async function openaiRoutes(app: FastifyInstance): Promise<void> {
       ...(backend.temperature !== undefined && { temperature: backend.temperature }),
     };
 
+    // Count input tokens upfront (used for both streaming and non-streaming)
+    const inputTokens = payload.messages.reduce((sum: number, msg: OpenAIMessage) => 
+      sum + (typeof msg.content === 'string' ? countTokens(msg.content) : 0), 0
+    );
+
     try {
-      if (body.stream) return stream(reply, baseUrl, payload, auth);
+      if (body.stream) {
+        return streamWithMetrics(app, reply, baseUrl, payload, auth, userTag, modelTag, inputTokens);
+      }
       
       const response = await callBackend<OpenAIResponse>(`${baseUrl}/v1/chat/completions`, payload, auth);
       
-      // Track metrics (hash email for privacy)
-      const userTag = req.userEmail ? hashEmail(req.userEmail) : 'unknown';
-      
-      const inputTokens = payload.messages.reduce((sum: number, msg: OpenAIMessage) => 
-        sum + (typeof msg.content === 'string' ? countTokens(msg.content) : 0), 0
-      );
-      
+      // Track metrics for non-streaming requests
       app.metrics.inferenceTokens.inc(
         { user: userTag, model: backend.model || body.model, type: 'input' },
         inputTokens
@@ -130,6 +133,80 @@ const stream = async (reply: FastifyReply, baseUrl: string, body: Record<string,
 
   reply.raw.end();
   reply.hijack();
+};
+
+const streamWithMetrics = async (
+  app: FastifyInstance,
+  reply: FastifyReply,
+  baseUrl: string,
+  body: Record<string, unknown>,
+  auth: string,
+  userTag: string,
+  modelTag: string,
+  inputTokens: number
+) => {
+  const url = `${baseUrl}/v1/chat/completions`;
+  let gen: AsyncGenerator<string>;
+  let outputTokens = 0;
+
+  // Track input tokens immediately
+  app.metrics.inferenceTokens.inc(
+    { user: userTag, model: modelTag, type: 'input' },
+    inputTokens
+  );
+
+  try {
+    gen = streamBackend(url, { ...body, stream: true }, auth);
+    const first = await gen.next();
+    if (first.done) throw new Error('Empty response');
+    reply.raw.writeHead(200, SSE_HEADERS);
+    reply.raw.write(first.value);
+    outputTokens += countStreamTokens(first.value);
+  } catch (e) {
+    reply.code(StatusCodes.INTERNAL_SERVER_ERROR);
+    return reply.send(createApiError(e instanceof Error ? e.message : 'Backend failed'));
+  }
+
+  try {
+    for await (const chunk of gen) {
+      reply.raw.write(chunk);
+      outputTokens += countStreamTokens(chunk);
+    }
+  } catch (e) {
+    reply.raw.write(formatSseError(e));
+  }
+
+  // Track output tokens at the end
+  if (outputTokens > 0) {
+    app.metrics.inferenceTokens.inc(
+      { user: userTag, model: modelTag, type: 'output' },
+      outputTokens
+    );
+  }
+
+  reply.raw.end();
+  reply.hijack();
+};
+
+const countStreamTokens = (chunk: string): number => {
+  // Parse SSE data lines and count tokens from content
+  const lines = chunk.split('\n').filter(line => line.startsWith('data: '));
+  let tokens = 0;
+  for (const line of lines) {
+    const data = line.slice(6); // Remove 'data: ' prefix
+    if (data === '[DONE]') continue;
+    try {
+      const parsed = JSON.parse(data);
+      const content = parsed.choices?.[0]?.delta?.content;
+      if (content) {
+        // Approximate: each chunk usually contains 1 token
+        tokens += 1;
+      }
+    } catch {
+      // Ignore parse errors
+    }
+  }
+  return tokens;
 };
 
 export default fp(openaiRoutes, { name: 'openai-routes' });
