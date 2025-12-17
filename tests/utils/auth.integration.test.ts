@@ -30,7 +30,7 @@ describe('JWT Email Extraction Integration', () => {
 
     // Step 2: Hash the email for use as a metric tag
     const userTag = hashEmail(email);
-    expect(userTag).toMatch(/^[a-f0-9]{8}$/);
+    expect(userTag).toMatch(/^[a-z]{3}-[a-f0-9]{4}$/);
 
     // Step 3: Verify the hash is deterministic
     const userTag2 = hashEmail(email);
@@ -80,7 +80,7 @@ describe('JWT Email Extraction Integration', () => {
 
     // Create user tag for metrics
     const userTag = hashEmail(extractedEmail);
-    expect(userTag).toMatch(/^[a-f0-9]{8}$/);
+    expect(userTag).toMatch(/^[a-z]{3}-[a-f0-9]{4}$/);
 
     // Simulate metric collection
     const metricLabels = {
