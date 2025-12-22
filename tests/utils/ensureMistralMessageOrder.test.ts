@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { anthropicToOpenAI, openAIToAnthropic, removeUnsupportedTools, sanitizeToolName, normalizeOpenAIToolIds, filterEmptyAssistantMessages, ensureMistralMessageOrder, convertOpenAIStreamToAnthropic } from '../../src/utils/convert.js';
+import { normalizeOpenAIToolIds, filterEmptyAssistantMessages, ensureMistralMessageOrder } from '../../src/utils/convert.js';
 import { pipe } from '../../src/utils/pipeline.js';
-import type { AnthropicRequest, OpenAIResponse } from '../../src/types/index.js';
+import type { AnthropicRequest } from '../../src/types/index.js';
 
 describe('ensureMistralMessageOrder', () => {
     it('should insert assistant message when user follows tool', () => {
